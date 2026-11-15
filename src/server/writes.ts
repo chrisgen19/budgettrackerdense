@@ -1,7 +1,7 @@
 import "server-only";
 import { Prisma, TransactionSource, type PrismaClient } from "@prisma/client";
 import { createTransactionBatch } from "@bt/lib/transaction-writes";
-import { batchTransactionSchema, resolveTransactionDate } from "@bt/lib/validations";
+import { batchTransactionSchema, isRealDate, resolveTransactionDate } from "@bt/lib/validations";
 import { prisma as defaultPrisma } from "@/server/db";
 
 /**
@@ -140,6 +140,10 @@ export async function createQuickEntry(
   if (!CLIENT_BATCH_ID.test(clientBatchId)) return fail("INVALID_INPUT");
 
   const { timezoneOffset, ...fields } = input;
+  // budgettracker's schema only requires a non-empty date, and resolving one
+  // rolls an impossible day forward (31 Feb becomes 3 Mar). Refuse it instead.
+  if (!isRealDate(fields.date)) return fail("INVALID_INPUT");
+
   const parsed = batchTransactionSchema.safeParse({
     ...fields,
     date: resolveTransactionDate(fields.date, timezoneOffset),

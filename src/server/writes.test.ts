@@ -145,6 +145,17 @@ describe("createQuickEntry", () => {
     expect(batch.calls).toHaveLength(0);
   });
 
+  it("refuses a date that does not exist instead of rolling it forward", async () => {
+    for (const date of ["2026-02-31", "2026-01-31T99:99", "2026-13-01"]) {
+      expect(await createQuickEntry("u1", { ...input, date }, KEY)).toEqual({
+        ok: false,
+        reason: "INVALID_INPUT",
+        retryable: false,
+      });
+    }
+    expect(batch.calls).toHaveLength(0);
+  });
+
   it("refuses what budgettracker's schema refuses, before writing", async () => {
     expect(await createQuickEntry("u1", { ...input, amount: -5 }, KEY)).toMatchObject({
       reason: "INVALID_INPUT",

@@ -17,6 +17,7 @@ const entrySchema = z.object({
   labelIds: z.array(z.string().min(1).max(100)).max(20).optional(),
   creditAccountId: z.string().min(1).max(100).nullable().optional(),
   description: z.string().max(255),
+  // Shape only; `createQuickEntry` refuses a date that does not exist.
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/),
 });
 
