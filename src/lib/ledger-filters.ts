@@ -244,3 +244,23 @@ export function toggleLabel(filters: LedgerFilters, labelId: string): string[] {
 export function toggleValue<T>(current: T | null, value: T): T | null {
   return current === value ? null : value;
 }
+
+/** How many category chips the filter bar shows before the picker takes over. */
+export const QUICK_CATEGORY_CHIPS = 8;
+
+/**
+ * The category chips: the active category first, so it can always be cleared,
+ * then the ones on the visible rows, capped. Every other category is reached
+ * through the bar's full picker, never hidden.
+ */
+export function quickCategories<Category extends { id: string }>(
+  categories: readonly Category[],
+  usedIds: readonly string[],
+  activeId: string | null,
+  limit = QUICK_CATEGORY_CHIPS,
+): Category[] {
+  const active = categories.filter((category) => category.id === activeId);
+  const used = categories.filter((category) => category.id !== activeId && usedIds.includes(category.id));
+
+  return [...active, ...used].slice(0, limit);
+}

@@ -11,6 +11,7 @@ import {
   type LedgerFilters,
   isUnfiltered,
   ledgerHref,
+  quickCategories,
   toggleLabel,
   toggleValue,
   toSearchParams,
@@ -40,11 +41,19 @@ export function FilterBar({
 }) {
   // The text form posts itself; everything else has to ride along as hidden
   // fields or a search would silently clear the chips.
-  const carried = toSearchParams({ ...filters, search: null, amountMin: null, amountMax: null, page: 1 });
+  const carried = toSearchParams({
+    ...filters,
+    search: null,
+    amountMin: null,
+    amountMax: null,
+    categoryId: null,
+    page: 1,
+  });
 
-  const shown = categories
-    .filter((category) => usedCategoryIds.includes(category.id) || category.id === filters.categoryId)
-    .slice(0, 8);
+  const shown = quickCategories(categories, usedCategoryIds, filters.categoryId);
+  const byType = (["EXPENSE", "INCOME"] as const).map(
+    (type) => [type, categories.filter((category) => category.type === type)] as const,
+  );
 
   return (
     <div className="mb-2 flex flex-col gap-1.5">
@@ -96,6 +105,29 @@ export function FilterBar({
               defaultValue={filters.amountMax ?? ""}
               className="w-14 min-w-0 border-0 bg-transparent tnum text-figure text-ink outline-0"
             />
+          </label>
+
+          {/* Every category, not just the chips: the chips only know this page's rows. */}
+          <label className="flex h-control min-w-0 items-center gap-1 rounded-panel border border-rule bg-panel px-2 text-label text-muted">
+            cat
+            <select
+              name="cat"
+              defaultValue={filters.categoryId ?? ""}
+              className="max-w-36 min-w-0 border-0 bg-transparent text-body text-ink outline-0"
+            >
+              <option value="">Any</option>
+              {byType.map(([type, list]) =>
+                list.length === 0 ? null : (
+                  <optgroup key={type} label={type === "EXPENSE" ? "Out" : "In"}>
+                    {list.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ),
+              )}
+            </select>
           </label>
 
           <button

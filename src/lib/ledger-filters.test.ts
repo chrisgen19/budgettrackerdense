@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  quickCategories,
   type LedgerFilters,
   isUnfiltered,
   ledgerHref,
@@ -177,5 +178,25 @@ describe("toggles", () => {
     expect(toggleValue("EXPENSE", "EXPENSE")).toBeNull();
     expect(toggleValue("EXPENSE", "INCOME")).toBe("INCOME");
     expect(toggleValue(null, "INCOME")).toBe("INCOME");
+  });
+});
+
+describe("quickCategories", () => {
+  const categories = Array.from({ length: 12 }, (_, index) => ({ id: `c${index}` }));
+  const ids = (list: { id: string }[]) => list.map((category) => category.id);
+
+  it("offers the categories on the visible rows, capped", () => {
+    expect(ids(quickCategories(categories, ["c1", "c3"], null))).toEqual(["c1", "c3"]);
+    expect(quickCategories(categories, ids(categories), null)).toHaveLength(8);
+  });
+
+  it("always keeps the active category, even past the cap", () => {
+    const chips = quickCategories(categories, ids(categories), "c11");
+    expect(chips).toHaveLength(8);
+    expect(chips[0]?.id).toBe("c11");
+  });
+
+  it("keeps the active category when no visible row uses it", () => {
+    expect(ids(quickCategories(categories, [], "c5"))).toEqual(["c5"]);
   });
 });
