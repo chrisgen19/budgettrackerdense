@@ -1,4 +1,4 @@
-// GENERATED from budgettracker@a9639d0:src/lib/card-purchase-rule.ts. Do not edit. Run pnpm sync:vendor.
+// GENERATED from budgettracker@202e6de:src/lib/card-purchase-rule.ts. Do not edit. Run pnpm sync:vendor.
 import type { Prisma, TransactionType } from "@prisma/client";
 import type { PrismaClient } from "@bt/lib/budget-query-types";
 

@@ -1,4 +1,4 @@
-// GENERATED from budgettracker@a9639d0:src/lib/budget-queries.ts. Do not edit. Run pnpm sync:vendor.
+// GENERATED from budgettracker@202e6de:src/lib/budget-queries.ts. Do not edit. Run pnpm sync:vendor.
 // The `Prisma` namespace is imported as a value, not just a type, for its JSON null
 // sentinels. This module otherwise takes its client by injection and imports only types.
 // Prisma's typed API rejects a plain `null` here (`Type 'null' is not assignable to

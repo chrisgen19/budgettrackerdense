@@ -1,4 +1,4 @@
-// GENERATED from budgettracker@a9639d0:src/lib/validations.ts. Do not edit. Run pnpm sync:vendor.
+// GENERATED from budgettracker@202e6de:src/lib/validations.ts. Do not edit. Run pnpm sync:vendor.
 import { z } from "zod";
 import { grantsWrite, mcpScopeSchema, type McpScope } from "@bt/lib/mcp/scopes";
 import { MAX_BREAKDOWN_GROUPS, MAX_BREAKDOWN_LINE_ITEMS } from "@bt/lib/receipt-limits";
@@ -510,7 +510,7 @@ export type ReceiptBreakdownMetaInput = z.infer<typeof receiptBreakdownMetaSchem
 export type UpdateAppSettingsInput = z.infer<typeof updateAppSettingsSchema>;
 
 /** Provenance filter accepted by `GET /api/transactions` and the MCP search tool. */
-export const transactionSourceSchema = z.enum(["APP", "MCP", "TELEGRAM"]);
+export const transactionSourceSchema = z.enum(["APP", "MCP", "TELEGRAM", "DENSE"]);
 
 /** What a minted token may claim to be. `APP` is excluded: it means the web app itself, which
  *  never uses a token, so offering it would let a token forge rows as hand-typed. */

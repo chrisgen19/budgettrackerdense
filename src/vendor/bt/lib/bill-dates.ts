@@ -1,4 +1,4 @@
-// GENERATED from budgettracker@a9639d0:src/lib/bill-dates.ts. Do not edit. Run pnpm sync:vendor.
+// GENERATED from budgettracker@202e6de:src/lib/bill-dates.ts. Do not edit. Run pnpm sync:vendor.
 /**
  * Date-only arithmetic for bill due dates, in UTC.
  *

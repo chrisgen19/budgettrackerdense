@@ -1,4 +1,4 @@
-// GENERATED from budgettracker@a9639d0:src/lib/schedule-matching.ts. Do not edit. Run pnpm sync:vendor.
+// GENERATED from budgettracker@202e6de:src/lib/schedule-matching.ts. Do not edit. Run pnpm sync:vendor.
 /**
  * Pure schedule-matching utility — no Prisma or React dependencies.
  * Shared between client (transaction form) and server (batch API, retroactive apply).

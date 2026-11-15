@@ -1,4 +1,4 @@
-// GENERATED from budgettracker@a9639d0:src/types/index.ts. Do not edit. Run pnpm sync:vendor.
+// GENERATED from budgettracker@202e6de:src/types/index.ts. Do not edit. Run pnpm sync:vendor.
 import type {
   Category,
   Transaction,

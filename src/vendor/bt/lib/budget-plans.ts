@@ -1,4 +1,4 @@
-// GENERATED from budgettracker@a9639d0:src/lib/budget-plans.ts. Do not edit. Run pnpm sync:vendor.
+// GENERATED from budgettracker@202e6de:src/lib/budget-plans.ts. Do not edit. Run pnpm sync:vendor.
 import type { BudgetAllocationKind, Prisma } from "@prisma/client";
 import { prisma } from "@bt/lib/prisma";
 import {

@@ -1,4 +1,4 @@
-// GENERATED from budgettracker@a9639d0:src/lib/money.ts. Do not edit. Run pnpm sync:vendor.
+// GENERATED from budgettracker@202e6de:src/lib/money.ts. Do not edit. Run pnpm sync:vendor.
 /**
  * Round a money figure to centavos.
  *

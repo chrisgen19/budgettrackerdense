@@ -1,4 +1,4 @@
-// GENERATED from budgettracker@a9639d0:src/lib/schedule-server.ts. Do not edit. Run pnpm sync:vendor.
+// GENERATED from budgettracker@202e6de:src/lib/schedule-server.ts. Do not edit. Run pnpm sync:vendor.
 /**
  * Server-side schedule helpers — wraps Prisma queries + schedule matching.
  * Use in API routes. For client-side matching, use schedule-matching.ts directly.

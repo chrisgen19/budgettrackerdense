@@ -1,4 +1,4 @@
-// GENERATED from budgettracker@a9639d0:src/lib/budget-query-types.ts. Do not edit. Run pnpm sync:vendor.
+// GENERATED from budgettracker@202e6de:src/lib/budget-query-types.ts. Do not edit. Run pnpm sync:vendor.
 import type { PrismaClient } from "@prisma/client";
 
 // Re-export PrismaClient type for convenience
@@ -222,7 +222,7 @@ export interface SearchTransactionsParams extends PeriodParams {
   /** Sort direction. Defaults to "desc" */
   sortDir?: "asc" | "desc";
   /** Which surface created the row. Omit for any. */
-  createdVia?: "APP" | "MCP" | "TELEGRAM";
+  createdVia?: "APP" | "MCP" | "TELEGRAM" | "DENSE";
   /** Page number. Defaults to 1 */
   page?: number;
   /** Results per page. Defaults to 20 */

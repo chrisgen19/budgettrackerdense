@@ -1,4 +1,4 @@
-// GENERATED from budgettracker@a9639d0:src/lib/credit-account-queries.ts. Do not edit. Run pnpm sync:vendor.
+// GENERATED from budgettracker@202e6de:src/lib/credit-account-queries.ts. Do not edit. Run pnpm sync:vendor.
 import type { CreditAccount, CreditPayment, CreditPaymentKind, Prisma } from "@prisma/client";
 import type { PrismaClient } from "@bt/lib/budget-query-types";
 import { buildLabelBreakdown } from "@bt/lib/budget-queries";

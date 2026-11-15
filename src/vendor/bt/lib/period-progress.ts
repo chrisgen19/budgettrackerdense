@@ -1,4 +1,4 @@
-// GENERATED from budgettracker@a9639d0:src/lib/period-progress.ts. Do not edit. Run pnpm sync:vendor.
+// GENERATED from budgettracker@202e6de:src/lib/period-progress.ts. Do not edit. Run pnpm sync:vendor.
 const DAY_MS = 86_400_000;
 
 /** Below this share of elapsed days, totals are a floor rather than a comparison baseline. */

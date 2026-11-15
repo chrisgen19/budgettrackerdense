@@ -1,4 +1,4 @@
-// GENERATED from budgettracker@a9639d0:src/lib/assessment-facts.ts. Do not edit. Run pnpm sync:vendor.
+// GENERATED from budgettracker@202e6de:src/lib/assessment-facts.ts. Do not edit. Run pnpm sync:vendor.
 /**
  * The deterministic half of the AI Assessment.
  *

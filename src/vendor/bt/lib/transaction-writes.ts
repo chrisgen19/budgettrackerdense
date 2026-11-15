@@ -1,4 +1,4 @@
-// GENERATED from budgettracker@a9639d0:src/lib/transaction-writes.ts. Do not edit. Run pnpm sync:vendor.
+// GENERATED from budgettracker@202e6de:src/lib/transaction-writes.ts. Do not edit. Run pnpm sync:vendor.
 import { Prisma, type TransactionSource, type TransactionType } from "@prisma/client";
 import { getScheduleContext, matchScheduledLabel } from "@bt/lib/schedule-server";
 import { isDateOnly, resolveTransactionDate, type BatchTransactionInput } from "@bt/lib/validations";

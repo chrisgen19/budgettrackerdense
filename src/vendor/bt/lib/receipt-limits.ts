@@ -1,4 +1,4 @@
-// GENERATED from budgettracker@a9639d0:src/lib/receipt-limits.ts. Do not edit. Run pnpm sync:vendor.
+// GENERATED from budgettracker@202e6de:src/lib/receipt-limits.ts. Do not edit. Run pnpm sync:vendor.
 /**
  * Size limits for receipt images, in a module with no imports of its own.
  *

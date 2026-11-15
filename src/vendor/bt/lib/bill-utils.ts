@@ -1,4 +1,4 @@
-// GENERATED from budgettracker@a9639d0:src/lib/bill-utils.ts. Do not edit. Run pnpm sync:vendor.
+// GENERATED from budgettracker@202e6de:src/lib/bill-utils.ts. Do not edit. Run pnpm sync:vendor.
 import type { BillFrequency, BillOccurrenceStatus } from "@bt/types";
 import { addUtcDays, clampToMonth, userToday, utcDayStart } from "@bt/lib/bill-dates";
 

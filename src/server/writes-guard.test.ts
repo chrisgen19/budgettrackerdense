@@ -1,6 +1,14 @@
 import { Prisma } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 
+// A generated client from before step 0, with no DENSE. Stated here rather than read from the
+// real client, which has DENSE once `pnpm sync:schema` brings it in, so the refusal stays covered
+// for any checkout whose client predates the value.
+vi.mock("@prisma/client", async (original) => ({
+  ...(await original<typeof import("@prisma/client")>()),
+  TransactionSource: { APP: "APP", MCP: "MCP", TELEGRAM: "TELEGRAM" },
+}));
+
 const createTransactionBatch = vi.fn();
 vi.mock("@bt/lib/transaction-writes", () => ({ createTransactionBatch }));
 vi.mock("@/server/db", () => ({ prisma: { $queryRaw: vi.fn() } }));
@@ -46,9 +54,8 @@ describe("the writes-enabled guard", () => {
   });
 });
 
-describe("createQuickEntry before step 0", () => {
+describe("createQuickEntry with a client that predates DENSE", () => {
   it("refuses with DENSE_NOT_DEPLOYED and writes nothing", async () => {
-    // The real generated client: this checkout has no DENSE until `pnpm sync:schema`.
     const result = await createQuickEntry(
       "u1",
       {

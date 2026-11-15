@@ -1,4 +1,4 @@
-// GENERATED from budgettracker@a9639d0:src/lib/analytics-buckets.ts. Do not edit. Run pnpm sync:vendor.
+// GENERATED from budgettracker@202e6de:src/lib/analytics-buckets.ts. Do not edit. Run pnpm sync:vendor.
 import type { AnalyticsGranularity } from "@bt/types";
 
 export const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

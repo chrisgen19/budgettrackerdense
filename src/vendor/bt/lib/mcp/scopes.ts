@@ -1,4 +1,4 @@
-// GENERATED from budgettracker@a9639d0:src/lib/mcp/scopes.ts. Do not edit. Run pnpm sync:vendor.
+// GENERATED from budgettracker@202e6de:src/lib/mcp/scopes.ts. Do not edit. Run pnpm sync:vendor.
 import { z } from "zod";
 
 /**

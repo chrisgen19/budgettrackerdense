@@ -1,4 +1,4 @@
-// GENERATED from budgettracker@a9639d0:src/lib/analytics-limits.ts. Do not edit. Run pnpm sync:vendor.
+// GENERATED from budgettracker@202e6de:src/lib/analytics-limits.ts. Do not edit. Run pnpm sync:vendor.
 import { daysBetweenCalendarDays, parseCalendarDay } from "@bt/lib/period-progress";
 import type { AnalyticsGranularity } from "@bt/types";
 
