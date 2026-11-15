@@ -1,0 +1,1008 @@
+// GENERATED from budgettracker@a9639d0:src/lib/validations.ts. Do not edit. Run pnpm sync:vendor.
+import { z } from "zod";
+import { grantsWrite, mcpScopeSchema, type McpScope } from "@bt/lib/mcp/scopes";
+import { MAX_BREAKDOWN_GROUPS, MAX_BREAKDOWN_LINE_ITEMS } from "@bt/lib/receipt-limits";
+import {
+  analyticsRangeDays,
+  countAnalyticsBuckets,
+  MAX_ANALYTICS_BUCKETS,
+  MAX_ANALYTICS_RANGE_DAYS,
+} from "@bt/lib/analytics-limits";
+
+export const loginSchema = z.object({
+  email: z.string().email("Please enter a valid email"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+export const registerSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  email: z.string().email("Please enter a valid email"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
+export const transactionSchema = z.object({
+  amount: z.number().positive("Amount must be greater than 0"),
+  description: z.string().max(255).default(""),
+  type: z.enum(["INCOME", "EXPENSE"]),
+  date: z.string().min(1, "Date is required"),
+  categoryId: z.string().min(1, "Category is required"),
+  labelIds: z.array(z.string()).optional(),
+  /** The credit card this purchase was paid with. On an edit, omitted keeps the stored link and null
+   *  removes it. Validated by `checkCardPurchases`. */
+  creditAccountId: z.string().min(1).max(100).nullable().optional(),
+});
+
+/** A Resolve or Snooze action is allowed only for a versioned, bounded finding key. */
+export const watchlistFindingActionSchema = z.object({
+  findingKey: z.string().max(2_000).startsWith("watchlist:v1:", "Invalid finding"),
+  action: z.enum(["RESOLVED", "SNOOZED"]),
+});
+
+export const receiptBreakdownLineItemSchema = z.object({
+  name: z.string().max(255),
+  amount: z.number().positive(),
+});
+
+/**
+ * The blob persisted to `transactions.receipt_breakdown`.
+ *
+ * This is assembled client-side from an already-validated scan result and posted back, so
+ * before this schema existed the column accepted `z.any()` and stored whatever arrived. That
+ * pushed the burden onto every reader: `getReceiptItems` has to parse defensively, and
+ * `ReceiptBreakdown` renders `breakdown.items.length` with no guard, so a blob missing `items`
+ * was a render-time TypeError rather than a degraded display.
+ *
+ * The bounds mirror what the client actually produces (`use-multi-scan.ts`: `total` is the
+ * item's own positive amount, `items` are the line items already checked by
+ * `receiptBreakdownItemSchema`), so nothing the app legitimately writes is rejected. They also
+ * bound the stored size, which `MAX_BATCH_TRANSACTIONS` did not: it caps rows, not blob size.
+ *
+ * `.strict()` keeps unknown keys out of the column rather than letting arbitrary payload ride
+ * along inside the JSON.
+ */
+export const receiptBreakdownMetaSchema = z
+  .object({
+    total: z.number().positive(),
+    items: z.array(receiptBreakdownLineItemSchema).min(1).max(MAX_BREAKDOWN_LINE_ITEMS),
+  })
+  .strict();
+
+export const batchTransactionSchema = transactionSchema.extend({
+  receiptGroupId: z.string().optional(),
+  receiptBreakdown: receiptBreakdownMetaSchema.optional(),
+});
+
+/** One item accepted by `createTransactionBatch`. Exported so the shared write service and the
+ *  MCP tool type against the schema rather than restating its shape. */
+export type BatchTransactionInput = z.infer<typeof batchTransactionSchema>;
+
+/**
+ * A 24-hour time of day, zero-padded: "08:00", never "8:00".
+ *
+ * The padding is not cosmetic. Every time-of-day window in this codebase is compared as a string
+ * (`schedule-matching.ts`, and the daily Telegram prompt), and lexicographically "8:00" is greater
+ * than "20:00". An unpadded value therefore does not merely look wrong, it inverts the comparison
+ * and silently fires at the wrong end of the day.
+ */
+export const HH_MM = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+export const labelScheduleSchema = z.object({
+  id: z.string().optional(),
+  days: z.array(z.number().int().min(0).max(6)).min(1, "Select at least one day"),
+  startTime: z.string().regex(HH_MM, "Invalid time format"),
+  endTime: z.string().regex(HH_MM, "Invalid time format"),
+}).refine(
+  (s) => s.startTime < s.endTime,
+  { message: "End time must be after start time (overnight ranges not supported)", path: ["endTime"] }
+);
+
+export const labelSchema = z.object({
+  name: z.string().min(1, "Name is required").max(30),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid color format"),
+  applicableTo: z.enum(["EXPENSE", "INCOME", "BOTH"]).default("BOTH"),
+  schedules: z.array(labelScheduleSchema).max(10, "Maximum 10 schedules per label").optional(),
+});
+
+export const categorySchema = z.object({
+  name: z.string().min(1, "Name is required").max(50),
+  type: z.enum(["INCOME", "EXPENSE"]),
+  icon: z.string().min(1, "Icon is required"),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid color format"),
+});
+
+export const updateProfileSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  email: z.string().email("Please enter a valid email"),
+  currency: z.string().min(1, "Currency is required"),
+  timezoneOffset: z.number().int(),
+});
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(6, "Password must be at least 6 characters"),
+  newPassword: z.string().min(6, "Password must be at least 6 characters"),
+  confirmPassword: z.string(),
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
+export type LoginInput = z.infer<typeof loginSchema>;
+export type RegisterInput = z.infer<typeof registerSchema>;
+export type TransactionInput = z.infer<typeof transactionSchema>;
+export type LabelInput = z.infer<typeof labelSchema>;
+export type LabelScheduleInput = z.infer<typeof labelScheduleSchema>;
+export type CategoryInput = z.infer<typeof categorySchema>;
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+
+/** Ceiling on one batch-create request. Multi-scan Save All sends every reviewed row in a
+ *  single atomic request, and one upload can expand well past the old cap of 50 once
+ *  receipts are itemised into per-category children. Overflowing it failed the whole save
+ *  with a generic "Invalid input" after the scan credits had already been spent. */
+export const MAX_BATCH_TRANSACTIONS = 200;
+
+/**
+ * Ceiling on one `update_transactions` call.
+ *
+ * Deliberately below `MAX_BATCH_TRANSACTIONS`. That cap is 200 because a single multi-scan
+ * receipt expands past 50 rows once itemised, and failing the save after the scan credits were
+ * spent is the failure it was raised to prevent. Editing has no such shape -- nothing produces
+ * fifty simultaneous corrections -- so the only thing a high ceiling buys here is a larger blast
+ * radius for one wrong call against rows that already exist.
+ */
+export const MAX_UPDATE_TRANSACTIONS = 50;
+
+/** Longest lifetime the MCP token UI will mint. Anything longer is re-minted deliberately. */
+export const MAX_TOKEN_EXPIRY_DAYS = 365;
+
+/** Longest lifetime for a token that can write. Shorter than the read cap on purpose: it bounds
+ *  how long a leaked writing credential stays useful, which revocation alone cannot do when the
+ *  leak goes unnoticed. A Telegram bot token is exempt; see `tokenExpiryRefusal`. */
+export const MAX_WRITE_TOKEN_EXPIRY_DAYS = 90;
+
+/** Ceiling on a single timed MCP write lease: 365 days. It was 30, and the Telegram bot writes
+ *  through `/api/mcp`, so every lapse silently broke logging from chat until someone reopened
+ *  Profile > MCP Access. A lease with no end is `MCP_WRITE_LEASE_FOREVER`, not a larger number. */
+export const MAX_WRITE_LEASE_MINUTES = 365 * 24 * 60;
+
+/** Sent as `mcpWriteMinutes` to open writes until they are switched off by hand. */
+export const MCP_WRITE_LEASE_FOREVER = "forever";
+
+/** What a forever lease stores in `users.mcp_writes_enabled_until`. A far-future instant rather
+ *  than a new column, so `resolveWritePermission` and "Turn off now" (null) work unchanged. */
+export const FOREVER_LEASE_UNTIL = new Date("9999-12-31T23:59:59.999Z");
+
+/** True when a stored lease is the forever sentinel, so the UI can say "until you turn it off"
+ *  instead of printing the year 9999. Compares by year to survive a round trip through JSON. */
+export const isForeverLease = (until: Date | string): boolean =>
+  new Date(until).getUTCFullYear() >= FOREVER_LEASE_UNTIL.getUTCFullYear();
+
+/** Idempotency key accepted by POST /api/transactions/batch, so an ambiguous failure
+ *  (committed, response lost) can be retried without creating the receipts twice. */
+export const clientBatchIdSchema = z.string().uuid();
+
+export const receiptBreakdownItemSchema = z.object({
+  amount: z.number().positive(),
+  categoryId: z.string().min(1),
+  description: z.string().max(255),
+  lineItems: z.array(receiptBreakdownLineItemSchema).min(1).max(MAX_BREAKDOWN_LINE_ITEMS),
+});
+
+/** Signal from Gemini distinguishing "date read off the receipt" from "date is the photo-fallback we instructed".
+ *  Required: a missing field would silently default to OCR and re-mask the photo-fallback path,
+ *  so we'd rather reject the response (422) than silently drop it. */
+const dateSourceSchema = z.enum(["OCR", "PHOTO_FALLBACK"]);
+
+export const receiptBreakdownResultSchema = z.object({
+  date: z.string().min(1),
+  dateSource: dateSourceSchema,
+  items: z.array(receiptBreakdownItemSchema).min(1).max(MAX_BREAKDOWN_GROUPS),
+});
+
+export const receiptScanResultSchema = z.object({
+  amount: z.number().positive(),
+  categoryId: z.string().min(1),
+  date: z.string().min(1),
+  dateSource: dateSourceSchema,
+  description: z.string().max(255),
+  type: z.literal("EXPENSE"),
+  multiCategory: z.boolean(),
+  breakdown: z.array(receiptBreakdownItemSchema).min(1).max(MAX_BREAKDOWN_GROUPS).optional(),
+});
+
+export const updateAppSettingsSchema = z.object({
+  role: z.enum(["FREE", "PAID"]),
+  receiptScanEnabled: z.boolean().optional(),
+  maxUploadFiles: z.number().int().min(1).max(50).optional(),
+  monthlyScanLimit: z.number().int().min(0).max(1000).optional(),
+});
+
+export const scheduledTransactionSchema = z.object({
+  amount: z.number().positive("Amount must be greater than 0"),
+  description: z.string().max(255).default(""),
+  type: z.enum(["INCOME", "EXPENSE"]),
+  categoryId: z.string().min(1, "Category is required"),
+  frequency: z.enum(["DAILY", "WEEKLY", "MONTHLY", "ANNUALLY", "CUSTOM"]),
+  customIntervalDays: z.number().int().min(1).optional(),
+  reminderDaysBefore: z.number().int().min(0).max(30).default(0),
+  /**
+   * A metered bill whose cost varies. `amount` stays required as a fallback.
+   *
+   * Deliberately optional with no default: a PUT that omits it must leave the
+   * existing value alone. `.default(false)` would have silently un-marked a
+   * variable bill on any update that did not resend the field, which is a
+   * setting quietly reverting rather than an error anyone would see.
+   */
+  isVariable: z.boolean().optional(),
+  startDate: z.string().min(1, "Start date is required"),
+  endDate: z.string().optional(),
+  labelIds: z.array(z.string()).optional(),
+}).refine(
+  (data) => data.frequency !== "CUSTOM" || (data.customIntervalDays != null && data.customIntervalDays >= 1),
+  { message: "Custom interval is required for custom frequency", path: ["customIntervalDays"] }
+).refine(
+  (data) => !data.endDate || new Date(data.endDate) >= new Date(data.startDate),
+  { message: "End date must be on or after start date", path: ["endDate"] }
+);
+
+export const billActionSchema = z.object({
+  action: z.enum(["pay", "pay_existing", "skip", "snooze"]),
+  dueDate: z.string().min(1, "Due date is required"),
+  /**
+   * What was actually paid. Optional for a fixed bill, whose stored amount is
+   * the figure; **required** for a variable one, where that amount is only a
+   * fallback and writing it would put a guess in the ledger -- which the
+   * estimator then reads back as history and compounds.
+   */
+  amount: z.number().positive().optional(),
+  transactionId: z.string().optional(),
+  /** `pay_existing` only: the row was just created to settle this occurrence (Pay & Edit). */
+  createdForOccurrence: z.boolean().optional(),
+  snoozeDays: z.number().int().min(1).max(7).optional(),
+}).refine(
+  (data) => data.action !== "pay_existing" || (data.transactionId != null && data.transactionId.length > 0),
+  { message: "Transaction ID is required for pay_existing", path: ["transactionId"] }
+);
+
+export type ScheduledTransactionInput = z.infer<typeof scheduledTransactionSchema>;
+export type BillActionInput = z.infer<typeof billActionSchema>;
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email("Please enter a valid email"),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1, "Token is required"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
+export const validDateString = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)")
+  .refine((s) => {
+    const [y, m, d] = s.split("-").map(Number);
+    const date = new Date(y, m - 1, d);
+    return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d;
+  }, "Invalid calendar date");
+
+/**
+ * `Date.getTimezoneOffset()` in minutes. Real offsets span UTC-14 to UTC+14, so
+ * anything outside +/-840 is malformed and would silently shift the user's
+ * calendar day.
+ */
+export const timezoneOffsetParam = z.coerce.number().int().min(-840).max(840);
+
+export const calendarMonth = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Invalid month (YYYY-MM)");
+
+export const budgetPlanQuerySchema = z.object({
+  month: calendarMonth,
+  tz: timezoneOffsetParam,
+});
+
+export const cashFlowForecastQuerySchema = z.object({
+  days: z.coerce.number().int().refine((value) => [30, 60, 90].includes(value), "Choose 30, 60, or 90 days"),
+  tz: timezoneOffsetParam,
+});
+
+export const forecastOpeningBalanceSchema = z.object({
+  openingBalance: z.number().min(-999_999_999_999.99).max(999_999_999_999.99),
+  openingBalanceDate: validDateString,
+});
+
+export const budgetAllocationInputSchema = z.object({
+  categoryId: z.string().min(1).max(100),
+  amount: z.number().positive().max(999_999_999_999.99),
+  kind: z.enum(["INCOME", "FIXED", "FLEXIBLE", "SAVINGS"]),
+  rolloverEnabled: z.boolean().default(false),
+});
+
+export const budgetPlanInputSchema = z.object({
+  allocations: z.array(budgetAllocationInputSchema).max(100),
+}).superRefine((value, context) => {
+  const seen = new Set<string>();
+  value.allocations.forEach((allocation, index) => {
+    if (seen.has(allocation.categoryId)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Each category can appear only once",
+        path: ["allocations", index, "categoryId"],
+      });
+    }
+    seen.add(allocation.categoryId);
+  });
+});
+
+export type BudgetPlanInput = z.infer<typeof budgetPlanInputSchema>;
+
+/**
+ * The Debt tab's range. Borrows `/api/analytics`'s own span bound rather than setting a second one:
+ * two limits on the same page drift apart, and the tab should refuse exactly what its siblings do.
+ */
+export const debtAnalyticsQuerySchema = z
+  .object({ from: validDateString, to: validDateString })
+  .superRefine((data, context) => {
+    if (data.from > data.to) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "from must not be after to", path: ["from"] });
+      return;
+    }
+    if (analyticsRangeDays(data.from, data.to) > MAX_ANALYTICS_RANGE_DAYS) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Date range cannot exceed ${MAX_ANALYTICS_RANGE_DAYS.toLocaleString()} days`,
+        path: ["to"],
+      });
+    }
+  });
+
+export const analyticsQuerySchema = z.object({
+  granularity: z.enum(["weekly", "monthly", "yearly"]),
+  from: validDateString,
+  to: validDateString,
+  tz: timezoneOffsetParam,
+  type: z.enum(["ALL", "INCOME", "EXPENSE"]).default("ALL"),
+}).superRefine((data, context) => {
+  if (data.from > data.to) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "from must not be after to",
+      path: ["from"],
+    });
+    return;
+  }
+
+  if (analyticsRangeDays(data.from, data.to) > MAX_ANALYTICS_RANGE_DAYS) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `Date range cannot exceed ${MAX_ANALYTICS_RANGE_DAYS.toLocaleString()} days`,
+      path: ["to"],
+    });
+  }
+
+  if (countAnalyticsBuckets(data.from, data.to, data.granularity) > MAX_ANALYTICS_BUCKETS) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `Date range produces more than ${MAX_ANALYTICS_BUCKETS} ${data.granularity} buckets`,
+      path: ["granularity"],
+    });
+  }
+});
+
+export type AnalyticsQueryInput = z.infer<typeof analyticsQuerySchema>;
+
+/* ------------------------------------------------------------------ */
+/*  AI Assessment                                                      */
+/* ------------------------------------------------------------------ */
+
+/* LLM output is variable — these helpers normalize common quirks so valid-but-messy
+ * responses still parse instead of failing the whole generation. */
+
+/** Accepts "High"/"moderate"/etc. → high|medium|low, defaulting to "medium". */
+const severityField = z
+  .preprocess((v) => {
+    if (typeof v !== "string") return "medium";
+    const s = v.toLowerCase();
+    if (s.startsWith("h") || s.includes("critical") || s.includes("urgent")) return "high";
+    if (s.startsWith("l") || s.includes("minor")) return "low";
+    return "medium";
+  }, z.enum(["high", "medium", "low"]))
+  .catch("medium");
+
+/** Accepts a number, "₱9,000", "9000", null/"" → number | null. */
+const moneyField = z
+  .preprocess((v) => {
+    if (typeof v === "number") return Number.isFinite(v) ? v : null;
+    if (typeof v === "string") {
+      const n = Number(v.replace(/[^0-9.]/g, ""));
+      return Number.isFinite(n) && v.trim() !== "" ? n : null;
+    }
+    return null;
+  }, z.number().nonnegative().nullable())
+  .catch(null);
+
+const tipField = z.object({
+  title: z.string().catch(""),
+  detail: z.string().catch(""),
+});
+
+/** Validates the structured-JSON assessment. Resilient: bad/extra fields fall back
+ *  to safe defaults rather than failing the whole parse. */
+export const assessmentReportSchema = z.object({
+  summary: z.string().catch(""),
+  cashFlowCommentary: z.string().default("").catch(""),
+  // Reports cached before the score was removed use this key. Accept it on
+  // reads, then normalize to cashFlowCommentary so the old claim is not kept in
+  // the current API contract.
+  scoreCommentary: z.string().default("").catch(""),
+  // The four fields below arrived after reports were already cached, so each one
+  // defaults rather than failing: an older row must still render, minus the
+  // sections it was never asked for.
+  outlook: z.string().default("").catch(""),
+  patterns: z.array(z.object({
+    title: z.string().catch(""),
+    detail: z.string().catch(""),
+    severity: severityField,
+  })).default([]).catch([]),
+  trends: z.array(z.object({
+    title: z.string().catch(""),
+    detail: z.string().catch(""),
+    direction: z
+      .preprocess((v) => {
+        const s = typeof v === "string" ? v.toLowerCase() : "";
+        if (s.startsWith("u") || s.includes("ris") || s.includes("increas")) return "up";
+        if (s.startsWith("d") || s.includes("fall") || s.includes("decreas")) return "down";
+        if (s.startsWith("n")) return "new";
+        return "stable";
+      }, z.enum(["up", "down", "new", "stable"]))
+      .catch("stable"),
+  })).default([]).catch([]),
+  dataQuality: z.array(z.object({
+    title: z.string().catch(""),
+    detail: z.string().catch(""),
+    fix: z.string().catch(""),
+  })).default([]).catch([]),
+  watchList: z.array(z.object({
+    title: z.string().catch(""),
+    detail: z.string().catch(""),
+    severity: severityField,
+  })).catch([]),
+  cutBack: z.array(z.object({
+    title: z.string().catch(""),
+    reason: z.string().catch(""),
+    suggestion: z.string().catch(""),
+    estimatedMonthlySaving: moneyField,
+  })).catch([]),
+  boostSavings: z.array(tipField).catch([]),
+  earnIdeas: z.array(tipField).catch([]),
+  quickActions: z.array(z.string()).catch([]),
+}).transform(({ cashFlowCommentary, scoreCommentary, ...report }) => ({
+  ...report,
+  cashFlowCommentary: cashFlowCommentary || scoreCommentary,
+}));
+
+/** Validates the grounded web-tips JSON (sources come separately from grounding metadata). */
+export const webTipsSchema = z.object({
+  webTips: z.array(tipField).catch([]),
+});
+
+/** Validates the lightweight daily tip JSON. */
+export const dailyTipSchema = z.object({
+  tip: z.string().min(1).max(400),
+  rationale: z.string().min(1).max(400),
+});
+
+export type AssessmentReportResult = z.infer<typeof assessmentReportSchema>;
+export type WebTipsResult = z.infer<typeof webTipsSchema>;
+export type DailyTipResult = z.infer<typeof dailyTipSchema>;
+
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type ReceiptScanResult = z.infer<typeof receiptScanResultSchema>;
+export type ReceiptBreakdownResult = z.infer<typeof receiptBreakdownResultSchema>;
+export type ReceiptBreakdownMetaInput = z.infer<typeof receiptBreakdownMetaSchema>;
+export type UpdateAppSettingsInput = z.infer<typeof updateAppSettingsSchema>;
+
+/** Provenance filter accepted by `GET /api/transactions` and the MCP search tool. */
+export const transactionSourceSchema = z.enum(["APP", "MCP", "TELEGRAM"]);
+
+/** What a minted token may claim to be. `APP` is excluded: it means the web app itself, which
+ *  never uses a token, so offering it would let a token forge rows as hand-typed. */
+export const mcpTokenSourceSchema = z.enum(["MCP", "TELEGRAM"]);
+
+export type McpTokenSource = z.infer<typeof mcpTokenSourceSchema>;
+
+/** Days a token lasts from now, `null` for never. The one shape minting and re-dating share. */
+const tokenExpiryDaysSchema = z.number().int().min(1).max(MAX_TOKEN_EXPIRY_DAYS).nullable();
+
+/**
+ * Why a lifetime is refused for a token with these scopes and source, or `null` when it is allowed.
+ *
+ * A token that can write must expire within `MAX_WRITE_TOKEN_EXPIRY_DAYS`, **unless it is the
+ * Telegram bot's**. The bot writes through `/api/mcp` with `TELEGRAM_MCP_TOKEN`, so the cap meant
+ * it stopped logging every 90 days until someone minted a new token, pasted it into Coolify and
+ * redeployed. That credential lives in the server's environment, not in a laptop's config file,
+ * which is where a leak goes unnoticed; laptop tokens keep the cap. The source is a label the
+ * owner picks at mint, so this narrows the default rather than proving where the token lives.
+ *
+ * One function rather than a schema refine plus a form mirror, because minting, changing an
+ * existing token's expiry, and the form's disabled buttons all have to give the same answer.
+ */
+export const tokenExpiryRefusal = (token: {
+  scopes: readonly McpScope[];
+  source: McpTokenSource;
+  expiresInDays: number | null;
+}): string | null => {
+  if (!grantsWrite(token.scopes) || token.source === "TELEGRAM") return null;
+  if (token.expiresInDays === null) return "A token with a write scope must expire";
+  if (token.expiresInDays > MAX_WRITE_TOKEN_EXPIRY_DAYS) {
+    return `A token with a write scope may last at most ${MAX_WRITE_TOKEN_EXPIRY_DAYS} days`;
+  }
+  return null;
+};
+
+/** Body of `PATCH /api/mcp/tokens/[id]`: a new lifetime counted from now, replacing the old one. */
+export const updateMcpTokenExpirySchema = z.object({ expiresInDays: tokenExpiryDaysSchema });
+
+/**
+ * Minting an MCP token.
+ *
+ * A read-only credential that never expires is a contained risk: it can only ever disclose. One
+ * that can also create rows is not, so a write grant must carry an end date, and a shorter one,
+ * unless it is the Telegram bot's (`tokenExpiryRefusal`). Enforced in the schema rather than only
+ * in the form, since the form is not the only thing that can post this.
+ */
+export const createMcpTokenSchema = z
+  .object({
+    name: z.string().trim().min(1).max(60),
+    scopes: z.array(mcpScopeSchema).min(1),
+    expiresInDays: tokenExpiryDaysSchema,
+    source: mcpTokenSourceSchema.default("MCP"),
+  })
+  .superRefine((value, ctx) => {
+    const refusal = tokenExpiryRefusal(value);
+    if (refusal) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: refusal, path: ["expiresInDays"] });
+    }
+  });
+
+/**
+ * One transaction accepted by the MCP write tool.
+ *
+ * Stricter than `batchTransactionSchema` on `date`, which only requires a non-empty string
+ * because the app's own form supplies a picker-formatted value. Here the value comes from a
+ * model, and an unparseable one used to reach Prisma and fail inside the transaction, which
+ * reports UNKNOWN_WHETHER_SAVED and tells the caller to retry a request that can never succeed.
+ */
+/** `YYYY-MM-DD` with nothing after it. */
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * ISO 8601 date, optionally with a time and offset. Anchored at both ends on purpose.
+ *
+ * `Date.parse` is far more permissive than this: it accepts `"0"`, `"2026"` and `"Mar 3 2026"`,
+ * each of which becomes some real instant that bears no relation to what a user approved. The
+ * tool documents an ISO date, so only that is accepted.
+ */
+const ISO_DATE_TIME =
+  /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,6})?)?(Z|[+-]\d{2}:?\d{2})?)?$/;
+
+export const isDateOnly = (value: string): boolean => DATE_ONLY.test(value);
+
+/**
+ * True only for a date that exists, whether or not it carries a time.
+ *
+ * `Date.parse` is not enough: JavaScript silently rolls impossible dates forward, so both
+ * `2026-02-31` *and* `2026-02-31T00:00:00Z` parse fine and become 3 March. Storing a different
+ * day from the one the user approved is worse than refusing the input, so the calendar
+ * components are checked to survive the round trip, and the time components are range-checked.
+ */
+export const isRealDate = (value: string): boolean => {
+  const match = ISO_DATE_TIME.exec(value);
+  if (!match) return false;
+
+  const [, ys, ms, ds, hs, mins, secs] = match;
+  const [y, m, d] = [Number(ys), Number(ms), Number(ds)];
+
+  const asUtc = new Date(Date.UTC(y, m - 1, d));
+  if (asUtc.getUTCFullYear() !== y || asUtc.getUTCMonth() !== m - 1 || asUtc.getUTCDate() !== d) {
+    return false;
+  }
+
+  if (hs !== undefined && (Number(hs) > 23 || Number(mins) > 59)) return false;
+  if (secs !== undefined && Number(secs) > 59) return false;
+
+  // Backstop for anything the pattern's shape admits but the runtime cannot represent, such as a
+  // UTC offset of +24:00 or +14:61. Checking each component separately has now twice let a
+  // narrower case through, so this bounds the whole class instead: whatever survives above must
+  // also resolve to a real instant, or `new Date()` would produce Invalid Date, the write would
+  // fail inside Prisma, and the caller would be told to retry a request that can never succeed.
+  return Number.isFinite(Date.parse(value));
+};
+
+/**
+ * Render a stored instant as the calendar day the user would see in the app.
+ *
+ * The tool's confirmation echoes the date back to the model, and a raw UTC slice reports the
+ * wrong day for anyone east of Greenwich: a UTC+8 user's 1 March row is stored as
+ * `2026-02-28T16:00:00Z`, so slicing the ISO string would claim 28 February for a transaction the
+ * app correctly shows on 1 March.
+ *
+ * @param timezoneOffset Minutes, `getTimezoneOffset()` convention (UTC+8 is -480).
+ */
+export const formatLocalDate = (instant: Date, timezoneOffset: number): string =>
+  new Date(instant.getTime() - timezoneOffset * 60_000).toISOString().slice(0, 10);
+
+/**
+ * Resolve an account-local date or datetime to its stored UTC instant.
+ *
+ * A bare `YYYY-MM-DD` parses as **midnight UTC**, which is the previous day for anyone west of
+ * Greenwich: a 1 March transaction from a UTC-5 user lands inside February's range and shows up
+ * in the wrong month. Every other write path already avoids this by attaching a local wall-clock
+ * time before sending (the paired date/time controls in the transaction form, `withLocalTime` in
+ * the scan flow); the MCP tool is the only caller that receives a bare date, so it normalises here
+ * using the same `Date.UTC(y, m, d) + tzOffset * 60000` formula the rest of the app uses for day
+ * and month boundaries.
+ *
+ * A zone-less time is the user's saved wall clock and is resolved with `timezoneOffset`.
+ * A value carrying `Z` or an explicit offset already identifies an instant and is preserved.
+ *
+ * @param timezoneOffset Minutes, `getTimezoneOffset()` convention (UTC+8 is -480).
+ */
+/**
+ * Whether a supplied date carries a time that reflects reality.
+ *
+ * `resolveTransactionDate` fills a bare date with the current clock, which is right for entering
+ * something as it happens and wrong for backdating: "yesterday's dinner" would be stamped with
+ * this morning's time. That fabricated clock must not then drive schedule matching, or a Tuesday
+ * dinner lands inside a weekday 05:00-17:00 window and gets tagged as work spending.
+ *
+ * Trustworthy when the caller gave a time, or when the date is today in the user's own timezone,
+ * because filling "today" with "now" is what the app's own form does anyway.
+ *
+ * @param timezoneOffset Minutes, `getTimezoneOffset()` convention (UTC+8 is -480).
+ */
+export const hasTrustworthyTime = (
+  value: string,
+  timezoneOffset: number,
+  now = new Date()
+): boolean => {
+  const match = ISO_DATE_TIME.exec(value);
+  if (!match) return false;
+
+  const [, ys, ms, ds, hs] = match;
+  if (hs !== undefined) return true;
+
+  const today = new Date(now.getTime() - timezoneOffset * 60_000).toISOString().slice(0, 10);
+  return `${ys}-${ms}-${ds}` === today;
+};
+
+export const resolveTransactionDate = (
+  value: string,
+  timezoneOffset: number,
+  now = new Date()
+): string => {
+  const match = ISO_DATE_TIME.exec(value);
+  if (!match) return value;
+
+  const [, ys, ms, ds, hs, mins, secs, zone] = match;
+
+  // An explicit `Z` or offset already pins the instant, so it is used as given.
+  if (zone) return value;
+
+  // A bare date carries no time, so one has to be chosen. Midnight was the obvious anchor while
+  // this only had to land in the right month, but it turned out to be a tell: every MCP row sat
+  // at 12:00 AM while not one of the app's did. The form prefills its time control with the
+  // current clock, and the scanner's `withLocalTime` attaches the current clock to date-only
+  // OCR output, so "the user's current wall clock" is the convention this app already has.
+  //
+  // This only applies when no time was supplied. A model that heard "last night" should send one.
+  const [clockH, clockM] = hs === undefined
+    ? [
+        new Date(now.getTime() - timezoneOffset * 60_000).getUTCHours(),
+        new Date(now.getTime() - timezoneOffset * 60_000).getUTCMinutes(),
+      ]
+    : [Number(hs), mins === undefined ? 0 : Number(mins)];
+
+  // Everything else carries a wall-clock reading with no zone: a bare date, or a time such as
+  // `2026-08-25T23:30`. `new Date()` would resolve those against the *server's* timezone, which
+  // is UTC in production, so the stored instant would depend on where the app happens to run
+  // rather than on the user. Both are the user's local wall clock, resolved through the same
+  // `Date.UTC(...) + tzOffset * 60000` formula the rest of the app uses for boundaries.
+  const utcMs = Date.UTC(
+    Number(ys),
+    Number(ms) - 1,
+    Number(ds),
+    clockH,
+    clockM,
+    secs === undefined ? 0 : Number(secs)
+  );
+  return new Date(utcMs + timezoneOffset * 60_000).toISOString();
+};
+
+export const mcpTransactionSchema = batchTransactionSchema.extend({
+  date: z.string().refine(isRealDate, {
+    message: "date must be a real calendar date, e.g. 2026-08-25",
+  }),
+});
+
+/**
+ * Write-lease duration, in minutes from now.
+ *
+ * Minutes rather than an absolute instant so the client never sends a time its clock disagrees
+ * with, `null` to switch writes off, and a strict number rather than a coerced one: `Number(true)`
+ * is 1 and `Number("60")` is 60, so a coercing check would let a stray boolean or string quietly
+ * open the write window. `"forever"` is the one string accepted, and only as that exact literal.
+ */
+export const mcpWriteLeaseSchema = z
+  .union([
+    z.number().int().positive().max(MAX_WRITE_LEASE_MINUTES),
+    z.literal(MCP_WRITE_LEASE_FOREVER),
+  ])
+  .nullable();
+
+/**
+ * Quick-pick id lists (`users.quick_expense_categories`, `quick_income_categories`, `quick_labels`).
+ *
+ * Uniqueness is enforced here rather than left to the resolver. These columns are plain `String[]`
+ * with no foreign key, and the pickers count the stored list against their slot limit: four copies
+ * of one id passed the old `length > 4` check, so the picker would count four entries while
+ * rendering one tile selected and disable every remaining slot. That is the same dead end a
+ * deleted category used to cause, reached from the other side.
+ *
+ * A duplicate is rejected rather than silently deduped. Neither picker can produce one (toggling
+ * an already-selected id removes it), so a duplicate means a broken or hostile client, and quietly
+ * rewriting the payload would hide that while still returning 200.
+ */
+export const quickPickIdsSchema = (max: number) =>
+  z
+    .array(z.string())
+    .max(max)
+    .refine((ids) => new Set(ids).size === ids.length, {
+      message: "must not contain duplicate ids",
+    });
+
+/**
+ * How many labels one button may pin.
+ *
+ * Named rather than inline so the editor can say so: the form has to render the same figure the
+ * schema refuses on, or pressing Save past the cap does nothing with no explanation.
+ */
+export const MAX_TILE_LABELS = 10;
+
+/**
+ * A quick-log tile, as the Telegram Mini App's editor posts it.
+ *
+ * `amount` is `.nullable()` rather than `.optional()`, and the difference is load-bearing: `null`
+ * is a real state meaning "ask on the numeric pad". Were it optional, an absent field and a null
+ * one would be the same request and a patch could never turn a fixed tile back into an asking one.
+ *
+ * `label` is short because the grid is three columns on a phone. `description` is what reaches
+ * `transactions.description`, so it takes the same 255 bound `transactionSchema` uses.
+ */
+export const telegramQuickTileSchema = z.object({
+  label: z.string().trim().min(1, "Label is required").max(40),
+  description: z.string().trim().min(1, "Description is required").max(255),
+  amount: z.number().positive("Amount must be greater than 0").nullable(),
+  type: z.enum(["INCOME", "EXPENSE"]).default("EXPENSE"),
+  /** Null lets `matchCategory` decide from the description at log time. */
+  categoryId: z.string().min(1).nullable().default(null),
+  /**
+   * Labels pinned to this button, applied to every transaction it logs.
+   *
+   * `.optional()` and *not* `.nullable()`, which is the opposite choice from `amount` directly
+   * above, and the difference is the same one `createTransactionBatch` already turns on: an
+   * absent list means "leave the pins alone" on a patch, and an empty one means "remove them".
+   * There is no third state worth a `null`.
+   *
+   * Capped at the same 10 `labelSchema.schedules` uses. A button carrying more labels than that
+   * is not pinning a label, it is filing a transaction under everything at once, and
+   * `getLabelBreakdown` counts the full amount under every label a row carries.
+   */
+  labelIds: quickPickIdsSchema(MAX_TILE_LABELS).optional(),
+});
+
+/** Editing one tile. Every field optional, but `amount: null` still means "make it ask". */
+export const telegramQuickTilePatchSchema = telegramQuickTileSchema.partial();
+
+/**
+ * A tap, as the grid posts it.
+ *
+ * `tileId` is optional because a Frequent tile is derived and has no row to name.
+ *
+ * There is deliberately no `date`. The server stamps `new Date()`: a tap happens now, the webview
+ * clock is not ours to trust, and a real clock is what lets the user's label schedules run.
+ */
+export const telegramQuickLogSchema = z.object({
+  tileId: z.string().min(1).optional(),
+  description: z.string().trim().min(1).max(255),
+  amount: z.number().positive("Amount must be greater than 0"),
+  type: z.enum(["INCOME", "EXPENSE"]).default("EXPENSE"),
+  categoryId: z.string().min(1).optional(),
+  clientBatchId: clientBatchIdSchema,
+});
+
+/** Reordering: this user's tile ids, in the order they should appear. */
+export const telegramQuickTileOrderSchema = z.object({
+  ids: z
+    .array(z.string().min(1))
+    .min(1)
+    .refine((ids) => new Set(ids).size === ids.length, {
+      message: "must not contain duplicate ids",
+    }),
+});
+
+export type TelegramQuickTileInput = z.infer<typeof telegramQuickTileSchema>;
+export type TelegramQuickTilePatchInput = z.infer<typeof telegramQuickTilePatchSchema>;
+export type TelegramQuickLogInput = z.infer<typeof telegramQuickLogSchema>;
+export type TelegramQuickTileOrderInput = z.infer<typeof telegramQuickTileOrderSchema>;
+
+/** A calendar day, `YYYY-MM-DD`, that exists. Statement lines carry no time of day. */
+const calendarDaySchema = z
+  .string()
+  .refine((value) => isDateOnly(value) && isRealDate(value), {
+    message: "Use a real calendar date, e.g. 2026-08-25",
+  });
+
+const dayOfMonthSchema = z.number().int().min(1).max(31);
+
+/**
+ * Creating or replacing a savings goal.
+ *
+ * `targetDate` is optional and explicitly nullable: a goal with no deadline is a real thing people
+ * have, and the pace arithmetic says so rather than inventing one.
+ */
+/**
+ * How lumpy a household's spending normally is, before "unusual" means anything.
+ *
+ * Bounded at both ends. Below 1.5 nearly every charge is an outlier against its own category's
+ * median and the finding becomes a list of the month's transactions; above 20 nothing short of a
+ * house deposit qualifies and the detector may as well be off - which is a state the switch beside
+ * it should express, not one reached by dragging a number until the alerts stop.
+ */
+export const watchlistOutlierRatioSchema = z.number().min(1.5).max(20);
+
+/** An absolute "this is a lot of money" figure, or null to judge on the ratio alone. */
+export const watchlistLargeAmountSchema = z.number().positive().max(1_000_000_000).nullable();
+
+export const savingsGoalSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(60),
+  kind: z.enum(["GOAL", "SINKING_FUND"]).default("GOAL"),
+  targetAmount: z.number().positive("Target must be greater than 0"),
+  targetDate: calendarDaySchema.nullable().optional(),
+  notes: z.string().trim().max(500).nullable().optional(),
+});
+
+/** Editing a goal. `status` archives it, brings it back, or marks it achieved. */
+export const savingsGoalPatchSchema = savingsGoalSchema
+  .partial()
+  .extend({ status: z.enum(["ACTIVE", "ACHIEVED", "ARCHIVED"]).optional() })
+  .refine((patch) => Object.values(patch).some((value) => value !== undefined), {
+    message: "Nothing to update",
+  });
+
+/**
+ * Assigning money to a goal, or taking it back out.
+ *
+ * One signed amount rather than a kind and a positive number: funded is the sum of the column, and
+ * a sign cannot disagree with a status the way two fields can. Zero is refused because it is not a
+ * decision - it is a row that changes nothing and shows up in the contribution count.
+ */
+export const savingsGoalContributionSchema = z.object({
+  amount: z.number().finite().refine((value) => value !== 0, {
+    message: "Enter an amount to add, or a negative one to take out",
+  }),
+  date: calendarDaySchema,
+  note: z.string().trim().max(255).nullable().optional(),
+});
+
+export type SavingsGoalInput = z.infer<typeof savingsGoalSchema>;
+export type SavingsGoalPatchInput = z.infer<typeof savingsGoalPatchSchema>;
+export type SavingsGoalContributionInput = z.infer<typeof savingsGoalContributionSchema>;
+
+export const creditAccountSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(50),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid color format").default("#8B7E6A"),
+  creditLimit: z.number().positive("Limit must be greater than 0").nullable().optional(),
+  statementDay: dayOfMonthSchema.nullable().optional(),
+  dueDay: dayOfMonthSchema.nullable().optional(),
+  /**
+   * Interest terms. All nullable, and absent means unknown rather than zero: a payoff projection
+   * computed at 0% is a different card, not a cautious estimate. `apr: 0` is a real 0% plan.
+   */
+  apr: z.number().min(0, "APR can't be negative").max(200, "APR looks too high").nullable().optional(),
+  minimumPaymentPct: z
+    .number()
+    .min(0, "Can't be negative")
+    .max(100, "A minimum over 100% of the balance isn't a minimum")
+    .nullable()
+    .optional(),
+  minimumPaymentFloor: z.number().min(0, "Can't be negative").nullable().optional(),
+  plannedPayment: z.number().min(0, "Can't be negative").nullable().optional(),
+  /** Negative is allowed: a card can start out holding a credit. */
+  openingBalance: z.number().finite().default(0),
+  openingBalanceDate: calendarDaySchema.optional(),
+});
+
+/** Editing a card. `isActive: false` archives it and `true` brings it back. */
+export const creditAccountPatchSchema = creditAccountSchema
+  .partial()
+  .extend({ isActive: z.boolean().optional() })
+  .refine((patch) => Object.values(patch).some((value) => value !== undefined), {
+    message: "Nothing to update",
+  });
+
+/**
+ * A payment to a card from the bank (`PAYMENT`), or a refund or reversal the card issued (`CREDIT`).
+ * Neither is spending: both only lower what the card owes.
+ */
+export const creditPaymentSchema = z.object({
+  kind: z.enum(["PAYMENT", "CREDIT"]).default("PAYMENT"),
+  amount: z.number().positive("Amount must be greater than 0"),
+  description: z.string().trim().max(255).default(""),
+  date: calendarDaySchema,
+});
+
+/**
+ * Recording a payment. `clientRequestId` is the idempotency key: a retry after a lost response
+ * replays the payment already saved under it rather than recording the money a second time. Kept
+ * off `creditPaymentSchema`, which the form and the correction schema derive from, so a correction
+ * can never write a key onto an existing row.
+ */
+export const creditPaymentCreateSchema = creditPaymentSchema.extend({
+  clientRequestId: clientBatchIdSchema.optional(),
+});
+
+/** Correcting one payment. `.partial()` does not re-apply the defaults, so an omitted kind is left alone. */
+export const creditPaymentPatchSchema = creditPaymentSchema
+  .partial()
+  .refine((patch) => Object.values(patch).some((value) => value !== undefined), {
+    message: "Nothing to update",
+  });
+
+export type CreditAccountInput = z.infer<typeof creditAccountSchema>;
+export type CreditAccountPatch = z.infer<typeof creditAccountPatchSchema>;
+export type CreditPaymentInput = z.infer<typeof creditPaymentSchema>;
+export type CreditPaymentPatch = z.infer<typeof creditPaymentPatchSchema>;
+
+/**
+ * One line of the card page's "Add purchases" form. Each becomes an ordinary EXPENSE transaction
+ * paid with the card, so this is the transaction shape narrowed to what a statement line has: a day
+ * rather than a time, and labels chosen explicitly, never by schedule.
+ */
+export const cardPurchaseLineSchema = z.object({
+  date: calendarDaySchema,
+  description: z.string().trim().max(255).default(""),
+  categoryId: z.string().min(1, "Category is required"),
+  amount: z.number({ invalid_type_error: "Enter an amount above 0" }).positive("Enter an amount above 0"),
+  labelIds: z.array(z.string()).default([]),
+});
+
+export const cardPurchasesFormSchema = z.object({
+  lines: z.array(cardPurchaseLineSchema).min(1).max(MAX_BATCH_TRANSACTIONS),
+});
+
+export type CardPurchaseLine = z.infer<typeof cardPurchaseLineSchema>;
+
+/**
+ * One interest or fee charge on a card. It becomes an ordinary EXPENSE transaction carrying the
+ * card, exactly like a purchase, because the money genuinely left: see `card-interest.ts`.
+ *
+ * The category is chosen rather than hardcoded. "Interest & Fees" is seeded, but a database seeded
+ * before it was added does not have it until `pnpm db:seed` runs again, and a form that assumed it
+ * would simply fail to submit with nothing on screen explaining why.
+ */
+export const cardInterestSchema = z.object({
+  date: calendarDaySchema,
+  description: z.string().trim().min(1, "Describe the charge").max(255),
+  categoryId: z.string().min(1, "Category is required"),
+  amount: z.number({ invalid_type_error: "Enter an amount above 0" }).positive("Enter an amount above 0"),
+});
+
+export type CardInterestInput = z.infer<typeof cardInterestSchema>;

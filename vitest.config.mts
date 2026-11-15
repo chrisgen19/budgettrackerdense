@@ -6,6 +6,12 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      // Server-side modules import "server-only", whose default entry throws
+      // outside a React Server Component. Resolve it the way the server build
+      // does, to the package's own empty module.
+      "server-only": fileURLToPath(
+        new URL("./node_modules/server-only/empty.js", import.meta.url),
+      ),
       "@bt": fileURLToPath(new URL("./src/vendor/bt", import.meta.url)),
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },

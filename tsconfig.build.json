@@ -1,0 +1,8 @@
+{
+  "//": "budgettracker's source, vendored into src/vendor/bt, is written without noUncheckedIndexedAccess and does not compile with it. This config drops that one flag so `next build` and `pnpm type-check` can check the vendored copy against this app's Prisma client and config. App code is still held to the flag by tsconfig.json: `pnpm type-check` runs that pass too, ignoring diagnostics under src/vendor/bt. Never edit a vendored file to satisfy a rule this repo added.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noUncheckedIndexedAccess": false,
+    "tsBuildInfoFile": "./tsconfig.build.tsbuildinfo"
+  }
+}

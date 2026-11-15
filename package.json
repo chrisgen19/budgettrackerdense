@@ -10,10 +10,13 @@
     "build": "prisma generate && next build",
     "start": "next start -p 3200",
     "lint": "eslint . --max-warnings 0",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsx scripts/type-check.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "sync:schema": "tsx scripts/sync-schema.ts"
+    "sync:schema": "tsx scripts/sync-schema.ts",
+    "sync:vendor": "tsx scripts/sync-vendor.ts",
+    "check:drift": "tsx scripts/check-drift.ts",
+    "smoke:reads": "node --env-file-if-exists=.env --conditions=react-server --import tsx scripts/smoke-reads.ts"
   },
   "dependencies": {
     "@prisma/client": "6.19.2",
@@ -21,7 +24,8 @@
     "prisma": "6.19.2",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "server-only": "^0.0.1"
+    "server-only": "^0.0.1",
+    "zod": "3.25.76"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",
