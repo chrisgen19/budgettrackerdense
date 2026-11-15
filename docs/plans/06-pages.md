@@ -269,11 +269,13 @@ budgettracker's own source, same local database, owner role, `timezoneOffset: -4
 August 95,313.87, July 59,371.00 and June 72,680.38 match as well, and October and November come
 back as genuinely empty.
 
-### Acceptance, partly checked
+### Acceptance, checked
 | Check | Result |
 |---|---|
 | Default range, a past month via `?month=`, and 3 / 6 / 12 | All four URLs return 200 and render |
 | Numbers match budgettracker | Three figures above, plus three more |
 | Empty months | October and November show "no data" on Net and blanks elsewhere, never 0 |
-| 1440 light | Checked: matches the mockup's report screen |
-| 390 / 768, dark, loading, error, empty-range | **Not checked** -- the session's usage limit was reached first |
+| 390 / 768 / 1440, light and dark | No horizontal page scroll at any width; the range nav wraps on a phone and only the matrix scrolls |
+| Loading | Streamed HTML cut at 3s against a 6s query already carries `aria-busy="true"` and both panel headers |
+| Error | Forced throw: headline, digest, "Try again"; never a blank chart |
+| Empty range | `?month=2025-06&months=3`: "Nothing logged between April 2025 to June 2025" |
