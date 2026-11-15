@@ -32,9 +32,10 @@ app's network, not a public port.
 | `SESSION_SECRET` | 32+ random bytes, base64 |
 | `ALLOWED_EMAILS` | Christian's login email |
 | `NODE_ENV` | `production` |
+| `BUDGETTRACKER_URL` | `https://budget.cgdev.site` (links out for editing plans and opening rows) |
 
 ## Domain and TLS
-A subdomain next to budgettracker's (for example `dense.<domain>`), HTTPS via Coolify's proxy.
+`dense.cgdev.site`, next to budgettracker's `budget.cgdev.site`, HTTPS via Coolify's proxy.
 Session cookie `Secure` in production.
 
 ## CI (GitHub Actions)
@@ -50,3 +51,18 @@ locally, read the diff, adjust, commit.
 - `dense_app` in production cannot `UPDATE transactions` (same `WHERE false` check as plan 02).
 - Revert path: stop the app in Coolify. It owns no schema and no data beyond rows it created
   (identifiable by `created_via = 'DENSE'`), so removing it leaves budgettracker untouched.
+
+## Status (2026-11-16)
+Repo prep landed (`docs/superpowers/specs/2026-11-16-deploy-prep-design.md`):
+- `Dockerfile` and `.dockerignore`: multi-stage `node:24-alpine` with openssl, standalone output,
+  non-root `nextjs`, port 3200. Verified locally: `/api/health` 200, `?db=1` 200 as `dense_app`,
+  `/overview` redirects to `/login`.
+- `src/app/api/health/route.ts`: 200 `{ ok: true }`; `?db=1` runs `SELECT 1`, 503 `{ ok: false }`
+  on failure. Coolify health check: `GET /api/health` on port 3200.
+- `.github/workflows/ci.yml`: lint, type-check, test, drift on push to `main` and every PR.
+- `pnpm type-check` runs `next typegen` first, so it works on a fresh clone.
+- budgettracker's DENSE release (`202e6de`) is in production since 2026-11-15.
+
+Still to do, each confirmed before it runs: the production `dense_app` role and grants, the
+Coolify application (Dockerfile build pack, this repo, `main`), its env vars, the domain, the
+first deploy, then the acceptance checks above.

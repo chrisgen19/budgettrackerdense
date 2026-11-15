@@ -1,0 +1,65 @@
+# The local gate (AGENTS.md) on every push to main and every PR.
+#
+# budgettracker is checked out beside this repo because the drift test and
+# check:drift read the commit pinned in prisma/.source-sha from its git history.
+# Full history (fetch-depth: 0) keeps that commit reachable, and check:drift
+# notes when budgettracker main has moved past it. Both repos are public, so no
+# token is needed.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: budgettrackerdense
+    env:
+      BUDGETTRACKER_DIR: ../budgettracker
+    steps:
+      - name: Check out budgettrackerdense
+        uses: actions/checkout@v4
+        with:
+          path: budgettrackerdense
+
+      - name: Check out budgettracker
+        uses: actions/checkout@v4
+        with:
+          repository: chrisgen19/budget-tracker-2026
+          ref: main
+          fetch-depth: 0
+          path: budgettracker
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: budgettrackerdense/.nvmrc
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type-check
+        run: pnpm type-check
+
+      - name: Test
+        run: pnpm test
+
+      - name: Drift
+        run: pnpm check:drift
