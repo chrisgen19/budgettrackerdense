@@ -10,10 +10,11 @@
  * the `lib/prisma` shim, which points the copied modules at this app's client.
  */
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { join, posix, relative, sep } from "node:path";
 import ts from "typescript";
-import { type GeneratedFile, SOURCE_DIR, sourceSha } from "./paths";
+import type { GeneratedFile } from "./paths";
+import { type SourceReader, workingTreeSource } from "./source";
 
 /** Where the copy lives, relative to the repo root. */
 export const VENDOR_DIR = "src/vendor/bt";
@@ -42,10 +43,8 @@ const SHIM_SOURCES: Record<string, string> = {
     'export { prisma } from "@/server/db";\n',
 };
 
-const SOURCE_SRC = join(SOURCE_DIR, "src");
-
 /** Resolve one import specifier to a path under budgettracker's `src/`, or null if external. */
-function resolveSpecifier(specifier: string, fromSrcPath: string): string | null {
+function resolveSpecifier(source: SourceReader, specifier: string, fromSrcPath: string): string | null {
   let candidate: string;
   if (specifier.startsWith("@/")) {
     candidate = specifier.slice(2);
@@ -57,8 +56,7 @@ function resolveSpecifier(specifier: string, fromSrcPath: string): string | null
 
   for (const suffix of [".ts", ".tsx", "/index.ts", "/index.tsx", ""]) {
     const withSuffix = `${candidate}${suffix}`;
-    const absolute = join(SOURCE_SRC, withSuffix);
-    if (existsSync(absolute) && statSync(absolute).isFile()) return withSuffix;
+    if (source.isFile(`src/${withSuffix}`)) return withSuffix;
   }
   return null;
 }
@@ -94,10 +92,11 @@ export interface VendorPlan {
   targets: Set<string>;
 }
 
-export function planVendorSync(sha = sourceSha()): VendorPlan {
-  if (!existsSync(SOURCE_SRC)) {
+export function planVendorSync(source: SourceReader = workingTreeSource()): VendorPlan {
+  const { sha } = source;
+  if (!source.isFile(`src/${ENTRY_FILES[0]}`)) {
     throw new Error(
-      `No sources at ${SOURCE_SRC}. Set BUDGETTRACKER_DIR to the budgettracker checkout.`,
+      `No sources under src/ in ${source.label}. Set BUDGETTRACKER_DIR to the budgettracker checkout.`,
     );
   }
 
@@ -111,18 +110,17 @@ export function planVendorSync(sha = sourceSha()): VendorPlan {
     if (SKIPPED_SOURCES.has(srcPath)) continue;
     if (srcPath.endsWith(".test.ts") || srcPath.endsWith(".test.tsx")) continue;
 
-    const absolute = join(SOURCE_SRC, srcPath);
-    if (!existsSync(absolute)) {
+    if (!source.isFile(`src/${srcPath}`)) {
       missing.push(srcPath);
       continue;
     }
 
-    const code = readFileSync(absolute, "utf8");
+    const code = source.read(`src/${srcPath}`);
     copied.set(srcPath, code);
 
     const preprocessed = ts.preProcessFile(code, true, true);
     for (const { fileName } of preprocessed.importedFiles) {
-      const resolved = resolveSpecifier(fileName, srcPath);
+      const resolved = resolveSpecifier(source, fileName, srcPath);
       if (!resolved || seen.has(resolved)) continue;
       seen.add(resolved);
       queue.push(resolved);

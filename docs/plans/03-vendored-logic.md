@@ -63,6 +63,11 @@ Watch-outs found in the audit:
 - Script: `"check:drift": "tsx scripts/check-drift.ts"`.
 - In CI (plan 08) budgettracker is checked out next to this repo at `main`, so drift means
   "budgettracker main moved; re-sync and review the diff".
+- The drift test in `pnpm test` (`scripts/vendored-logic.test.ts`) checks a narrower thing: that
+  the tree matches the commit it was synced from. It reads budgettracker at the sha in
+  `prisma/.source-sha` straight from git objects (`pinnedSource()` in `scripts/lib/source.ts`),
+  so it passes whichever branch the checkout has open, as long as that commit has been fetched.
+  `pnpm check:drift` and the sync scripts still read the checkout as it is on disk.
 
 ## ESLint and TypeScript
 - Exclude `src/vendor/bt/**` and `prisma/**` from ESLint (budgettracker lints them in its own

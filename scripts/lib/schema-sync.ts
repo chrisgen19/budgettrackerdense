@@ -3,23 +3,23 @@
  *
  * Pure so `sync-schema.ts` can write it and `check-drift.ts` can compare it in memory.
  */
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { type GeneratedFile, SOURCE_DIR, sourceSha } from "./paths";
+import type { GeneratedFile } from "./paths";
+import { type SourceReader, workingTreeSource } from "./source";
 
-const SOURCE_SCHEMA = join(SOURCE_DIR, "prisma", "schema.prisma");
+const SOURCE_SCHEMA = "prisma/schema.prisma";
 
-export function planSchemaSync(sha = sourceSha()): GeneratedFile[] {
-  if (!existsSync(SOURCE_SCHEMA)) {
+export function planSchemaSync(source: SourceReader = workingTreeSource()): GeneratedFile[] {
+  if (!source.isFile(SOURCE_SCHEMA)) {
     throw new Error(
-      `No schema at ${SOURCE_SCHEMA}. Set BUDGETTRACKER_DIR to the budgettracker checkout.`,
+      `No schema at ${SOURCE_SCHEMA} in ${source.label}. Set BUDGETTRACKER_DIR to the budgettracker checkout.`,
     );
   }
 
+  const { sha } = source;
   const header = `// GENERATED from budgettracker@${sha}. Do not edit. Run pnpm sync:schema.\n`;
 
   return [
-    { path: "prisma/schema.prisma", content: header + readFileSync(SOURCE_SCHEMA, "utf8") },
+    { path: "prisma/schema.prisma", content: header + source.read(SOURCE_SCHEMA) },
     { path: "prisma/.source-sha", content: `${sha}\n` },
   ];
 }

@@ -10,6 +10,7 @@ import { readFileSync } from "node:fs";
 import { join, posix } from "node:path";
 import { type GeneratedFile, REPO_ROOT } from "./paths";
 import { planSchemaSync } from "./schema-sync";
+import { type SourceReader, workingTreeSource } from "./source";
 import { GENERATED_PREFIX, VENDOR_DIR, existingVendorFiles, planVendorSync } from "./vendor-sync";
 
 const MANIFEST = posix.join(VENDOR_DIR, "MANIFEST.json");
@@ -58,12 +59,18 @@ function auditVendorDir(targets: Set<string>, read: ReadRepoFile, present: strin
   return problems;
 }
 
+/**
+ * Compares the tree with a fresh sync from `source`. The default is the
+ * checkout's HEAD, which also catches budgettracker having moved on; pass
+ * `pinnedSource()` to check only that the tree matches the commit it records.
+ */
 export function findDrift(
   read: ReadRepoFile = readFromDisk,
   present: string[] = existingVendorFiles(REPO_ROOT),
+  source: SourceReader = workingTreeSource(),
 ): DriftReport {
-  const schema = planSchemaSync();
-  const vendor = planVendorSync();
+  const schema = planSchemaSync(source);
+  const vendor = planVendorSync(source);
 
   return {
     sha: vendor.sha,

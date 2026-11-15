@@ -3,10 +3,17 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { findDrift, type ReadRepoFile } from "./lib/drift";
 import { REPO_ROOT } from "./lib/paths";
+import { pinnedSha, pinnedSource } from "./lib/source";
 import { VENDOR_DIR, existingVendorFiles, planVendorSync } from "./lib/vendor-sync";
 
-const plan = planVendorSync();
+// The commit this tree was synced from (prisma/.source-sha), read from git, so
+// the result does not depend on which branch the budgettracker checkout has open.
+const source = pinnedSource();
+const plan = planVendorSync(source);
 const read: ReadRepoFile = (path) => readFileSync(join(REPO_ROOT, path), "utf8");
+const present = existingVendorFiles(REPO_ROOT);
+const drift = (reader: ReadRepoFile = read, files: string[] = present) =>
+  findDrift(reader, files, source);
 
 describe("the vendored copy is generated output", () => {
   it("covers the entry files this app imports", () => {
@@ -74,7 +81,16 @@ describe("the vendored copy is generated output", () => {
 
 describe("check:drift", () => {
   it("passes on the tree as synced", () => {
-    expect(findDrift().problems).toEqual([]);
+    expect(drift().problems).toEqual([]);
+  });
+
+  it("says how to recover when the pinned commit is not in the checkout", () => {
+    expect(() => pinnedSource("0000000")).toThrow(/not in .*git fetch/);
+  });
+
+  it("checks against the pinned commit, not the checkout's HEAD", () => {
+    expect(source.sha).toBe(pinnedSha());
+    expect(drift().sha).toBe(pinnedSha());
   });
 
   it("fails when a vendored file is edited by hand", () => {
@@ -82,7 +98,7 @@ describe("check:drift", () => {
     const withEdit: ReadRepoFile = (path) =>
       path === edited ? `${read(path)}\n// hand edit\n` : read(path);
 
-    expect(findDrift(withEdit).problems).toContain(`${edited}: differs from a fresh sync`);
+    expect(drift(withEdit).problems).toContain(`${edited}: differs from a fresh sync`);
   });
 
   it("fails when a vendored file loses its GENERATED header", () => {
@@ -90,13 +106,13 @@ describe("check:drift", () => {
     const withStrip: ReadRepoFile = (path) =>
       path === stripped ? read(path).split("\n").slice(1).join("\n") : read(path);
 
-    expect(findDrift(withStrip).problems).toContain(`${stripped}: no GENERATED header`);
+    expect(drift(withStrip).problems).toContain(`${stripped}: no GENERATED header`);
   });
 
   it("fails when a file is added under the vendor directory by hand", () => {
-    const present = [...existingVendorFiles(REPO_ROOT), "lib/my-helper.ts"];
+    const withExtra = [...present, "lib/my-helper.ts"];
 
-    expect(findDrift(read, present).problems).toContain(
+    expect(drift(read, withExtra).problems).toContain(
       "src/vendor/bt/lib/my-helper.ts: not produced by a sync (hand-added or stale)",
     );
   });

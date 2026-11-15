@@ -7,13 +7,14 @@
  */
 import { execFileSync } from "node:child_process";
 import { planSchemaSync } from "./lib/schema-sync";
-import { REPO_ROOT, sourceSha } from "./lib/paths";
+import { REPO_ROOT } from "./lib/paths";
+import { workingTreeSource } from "./lib/source";
 import { writeGenerated } from "./lib/write-files";
 
 function main(): void {
-  const sha = sourceSha();
-  writeGenerated(planSchemaSync(sha));
-  process.stdout.write(`Synced prisma/schema.prisma from budgettracker@${sha}\n`);
+  const source = workingTreeSource();
+  writeGenerated(planSchemaSync(source));
+  process.stdout.write(`Synced prisma/schema.prisma from budgettracker@${source.sha}\n`);
 
   execFileSync("pnpm", ["exec", "prisma", "generate"], { cwd: REPO_ROOT, stdio: "inherit" });
 }
