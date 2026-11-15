@@ -64,6 +64,30 @@ describe("createRateLimiter", () => {
     expect(rateLimiter.isBlocked("fresh", NOW + WINDOW_MS + 1)).toBe(false);
   });
 
+  it("holds no more than maxKeys even when every key is still live", () => {
+    const rateLimiter = createRateLimiter({ limit: 5, windowMs: WINDOW_MS, maxKeys: 10 });
+
+    for (let key = 0; key < 1_000; key += 1) rateLimiter.recordFailure(`key-${key}`, NOW + key);
+
+    expect(rateLimiter.size()).toBe(10);
+    // The most recent failures are the ones kept.
+    expect(rateLimiter.isBlocked("key-999", NOW + 1_000)).toBe(false);
+  });
+
+  it("drops the least recently failed key first, not a key that keeps failing", () => {
+    const rateLimiter = createRateLimiter({ limit: 3, windowMs: WINDOW_MS, maxKeys: 3 });
+
+    rateLimiter.recordFailure("attacked", NOW);
+    rateLimiter.recordFailure("a", NOW + 1);
+    rateLimiter.recordFailure("attacked", NOW + 2);
+    rateLimiter.recordFailure("b", NOW + 3);
+    rateLimiter.recordFailure("attacked", NOW + 4);
+    rateLimiter.recordFailure("c", NOW + 5);
+
+    expect(rateLimiter.size()).toBe(3);
+    expect(rateLimiter.isBlocked("attacked", NOW + 6)).toBe(true);
+  });
+
   it("reset clears everything", () => {
     const rateLimiter = limiter();
 

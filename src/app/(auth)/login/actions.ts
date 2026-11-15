@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { clientIpFrom } from "@/lib/client-ip";
 import { verifyCredentials } from "@/server/credentials";
-import { loginLimiter, loginLimiterKey } from "@/server/login-limiter";
+import { clearLoginFailures, isLoginBlocked, recordLoginFailure } from "@/server/login-limiter";
 import { createSession } from "@/server/session";
 
 /**
@@ -35,20 +35,20 @@ export async function login(_previous: LoginState, formData: FormData): Promise<
   if (!parsed.success) return { error: GENERIC_ERROR };
 
   const { email, password } = parsed.data;
-  const key = loginLimiterKey(clientIpFrom(await headers()), email);
+  const ip = clientIpFrom(await headers());
 
   // Checked before the password, so a locked-out key is refused even when the
   // credentials are correct.
-  if (loginLimiter.isBlocked(key)) return { error: GENERIC_ERROR };
+  if (isLoginBlocked(ip, email)) return { error: GENERIC_ERROR };
 
   const userId = await verifyCredentials(email, password);
 
   if (!userId) {
-    loginLimiter.recordFailure(key);
+    recordLoginFailure(ip, email);
     return { error: GENERIC_ERROR };
   }
 
-  loginLimiter.clear(key);
+  clearLoginFailures(ip, email);
   await createSession(userId);
 
   redirect("/overview");

@@ -10,7 +10,11 @@ export interface RateLimiterOptions {
   limit: number;
   /** Window length in milliseconds. */
   windowMs: number;
-  /** Keys kept before stale ones are swept. Guards against unbounded growth. */
+  /**
+   * The most keys ever held. Stale keys are swept first; if every key is still
+   * live, the least recently failed ones are dropped, so memory stays bounded
+   * however many distinct keys a caller invents.
+   */
   maxKeys?: number;
 }
 
@@ -23,6 +27,8 @@ export interface RateLimiter {
   clear(key: string): void;
   /** Forgets everything. Tests use this; the app does not. */
   reset(): void;
+  /** Keys currently held. For tests and diagnostics. */
+  size(): number;
 }
 
 const DEFAULT_MAX_KEYS = 500;
@@ -55,8 +61,17 @@ export function createRateLimiter({
     },
 
     recordFailure(key, nowMs = Date.now()) {
-      if (failures.size > maxKeys) sweep(nowMs);
-      failures.set(key, [...recent(key, nowMs), nowMs]);
+      const kept = recent(key, nowMs);
+      // Re-inserted below, so the map stays ordered by most recent failure.
+      failures.delete(key);
+
+      if (failures.size >= maxKeys) sweep(nowMs);
+      for (const oldest of failures.keys()) {
+        if (failures.size < maxKeys) break;
+        failures.delete(oldest);
+      }
+
+      failures.set(key, [...kept, nowMs]);
     },
 
     clear(key) {
@@ -65,6 +80,10 @@ export function createRateLimiter({
 
     reset() {
       failures.clear();
+    },
+
+    size() {
+      return failures.size;
     },
   };
 }

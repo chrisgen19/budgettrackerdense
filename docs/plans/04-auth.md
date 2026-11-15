@@ -42,7 +42,9 @@ pick one and note it here.
 
 ## Rate limiting
 In-memory sliding window keyed by IP + email: 5 failures per 15 minutes, then refuse with the same
-generic message. One Coolify container, so in-memory is enough; note that a second replica would
+generic message. A second window keyed by IP alone allows 20 failures per 15 minutes across all
+emails, so one address cannot dodge the pair limit by inventing emails. Each limiter holds at most
+500 keys, dropping the least recently failed when every key is still live. One Coolify container, so in-memory is enough; note that a second replica would
 need a shared store.
 
 ## Security headers
