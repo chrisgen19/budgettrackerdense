@@ -1,5 +1,6 @@
 import "server-only";
 import type { MonthSummary } from "@bt/lib/budget-query-types";
+import { shiftMonthKey } from "@bt/lib/credit-account-queries";
 
 /**
  * Helpers for reading a window of months out of budgettracker's
@@ -20,21 +21,52 @@ export function monthsApart(from: string, to: string): number {
 }
 
 /**
- * The `count` months ending at `month`, oldest first.
+ * A month the summary cannot hold yet because it has not happened: nothing
+ * logged, nothing elapsed. Drawn as an empty month, never as recent figures.
+ */
+function notYetMonth(monthKey: string): MonthSummary {
+  const [year, month] = monthKey.split("-").map(Number) as [number, number];
+  const label = new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" }).format(
+    new Date(Date.UTC(year, month - 1, 1)),
+  );
+
+  return {
+    month: label,
+    monthKey,
+    income: 0,
+    expenses: 0,
+    net: 0,
+    isPartial: false,
+    daysInMonth: new Date(Date.UTC(year, month, 0)).getUTCDate(),
+    daysElapsed: 0,
+  };
+}
+
+/**
+ * The `count` months ending at `month`, oldest first, always the requested
+ * months and never a substitute window.
  *
- * A shorter window comes back when history runs out, rather than padding with
- * invented zero months: a month that was never recorded is not a month of no
- * spending.
+ * Months after the newest summary row are still to come (the summary counts
+ * back from today), so they come back empty. Months before the oldest row are
+ * left out, so a shorter window comes back when history runs out rather than
+ * padding with invented zero months: a month that was never recorded is not a
+ * month of no spending.
  */
 export function monthsEndingAt(
   summary: readonly MonthSummary[],
   month: string,
   count: number,
 ): MonthSummary[] {
-  const end = summary.findIndex((row) => row.monthKey === month);
-  if (end === -1) return summary.slice(-count);
+  const byKey = new Map(summary.map((row) => [row.monthKey, row]));
+  const newest = summary.at(-1)?.monthKey;
 
-  return summary.slice(Math.max(end + 1 - count, 0), end + 1);
+  return Array.from({ length: count }, (_, index) => shiftMonthKey(month, index - count + 1)).flatMap(
+    (key) => {
+      const row = byKey.get(key);
+      if (row) return [row];
+      return newest !== undefined && key > newest ? [notYetMonth(key)] : [];
+    },
+  );
 }
 
 /**

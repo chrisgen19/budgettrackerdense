@@ -60,14 +60,28 @@ describe("monthsEndingAt", () => {
     ]);
   });
 
-  it("falls back to the newest six when the month is not in the summary", () => {
-    expect(monthsEndingAt(summary, "2030-01", 6).map((m) => m.monthKey)).toEqual([
-      "2026-06",
-      "2026-07",
+  it("returns the requested future months, empty, never the newest history", () => {
+    const window = monthsEndingAt(summary, "2027-01", 6);
+
+    expect(window.map((m) => m.monthKey)).toEqual([
       "2026-08",
       "2026-09",
       "2026-10",
       "2026-11",
+      "2026-12",
+      "2027-01",
+    ]);
+    expect(window.slice(4)).toEqual([
+      expect.objectContaining({ month: "Dec 2026", income: 0, expenses: 0, daysElapsed: 0, daysInMonth: 31 }),
+      expect.objectContaining({ month: "Jan 2027", income: 0, expenses: 0, daysElapsed: 0, daysInMonth: 31 }),
+    ]);
+    expect(window.slice(4).every(isEmptyMonth)).toBe(true);
+  });
+
+  it("returns only empty months when the whole window is still to come", () => {
+    expect(monthsEndingAt(summary, "2030-02", 2)).toEqual([
+      expect.objectContaining({ monthKey: "2030-01", daysInMonth: 31 }),
+      expect.objectContaining({ monthKey: "2030-02", daysInMonth: 28, expenses: 0 }),
     ]);
   });
 });
