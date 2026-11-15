@@ -77,3 +77,75 @@ but the Save button is disabled with an explanation.
 - Loading, error (simulate by pointing at a bad DATABASE_URL in dev), and empty (a future month)
   states all render.
 - Checked at 390, 768, 1440 in light and dark.
+
+## Overview, as built (Nov 2026)
+The first page of this phase. The other seven are still to do.
+
+**One read module, `src/server/queries/overview.ts`.** The page awaits a single
+`fetchOverview(prisma, userId, { timezoneOffset, month })`; every figure on screen comes from it.
+`timezoneOffset` is threaded into every call by hand, never defaulted: the vendored queries fall
+back to UTC when it is missing, which silently returns the wrong month.
+
+| Figure | Source |
+|---|---|
+| Income, Spent, Net, the six-month sparklines | bt `getMonthlySummary` |
+| Spent vs last month, and the Categories Δ | bt `getSpendingTrends` |
+| Budget, Remaining, day n/N | bt `getBudgetPerformance` |
+| Burn chart and day bars | dense `fetchDailySpend` |
+| Category colours and six-month trend lines | dense `fetchCategoryByMonth` |
+| Labels | bt `getLabelBreakdown` |
+| Owed and utilization | bt `getCreditAccountSummaries`, `asOf` the end of the month shown |
+| Per-source spend, Recent rows | dense `fetchLedger` |
+
+Two choices worth recording:
+- **`getSpendingTrends`, not two calls to `getSpendingByCategory`.** It clips both months to the
+  same day while the current one is running. A part-month against a whole one reads as a saving in
+  every category whose bill has not landed yet -- budgettracker's #236. The Categories panel's
+  meta says "to date" when the clip is in force.
+- **`getMonthlySummary` is sliced, not re-implemented.** It only counts back from today, so
+  viewing September in November asks for enough months to reach it and keeps the six ending there
+  (`sparkWindow`). A second monthly rollup would be a second definition of what a month's spend is.
+
+**No plan means no budget figures.** `getBudgetPerformance().plan === null` is the whole test.
+The Budget KPI then reads "No plan" and links to budgettracker's plan editor, Remaining reads
+`−` with "needs a budget plan", and the burn chart draws neither the dashed budget line, the
+dotted pace line, nor the red threshold on the day bars; its meta says "no budget plan for this
+month". Nothing is averaged into a stand-in. The mockup's "5-mo avg" sample figure was exactly
+the thing not to ship: an average of previous months renders identically to a target somebody set.
+
+**Four states.** `loading.tsx` repeats the page's own shape -- six KPI cells, five panels at their
+real heights -- so nothing moves when the data lands. `error.tsx` says the read failed and offers
+a retry, and never degrades into the empty state: for money, "nothing was spent" and "the query
+failed" are different answers and only one of them is reassuring. Empty is a month with no rows,
+and distinguishes a month that has not started from one that was simply not logged.
+
+**Also in this commit:** `src/lib/month.ts` was deleted. It duplicated the vendored
+`currentMonthKey`, which the plan names, and the shell now uses the vendored one.
+
+### Figures spot-checked against budgettracker
+Both apps read the same local database (`budgettracker-nextjs`); budgettracker's own source was
+run against it directly, as the owner role, for September 2026 with `timezoneOffset: -480`.
+
+| Figure | Dense | budgettracker | Source compared |
+|---|---|---|---|
+| Spent | 81,578.35 | 81,578.35 | `getMonthlySummary` (and dense `fetchDailySpend` totals the same, a third path) |
+| Spent vs August | −13,735.52 (from 95,313.87) | −13,735.52 | `getSpendingTrends` |
+| BPI owed / utilization, end of Sep | 76,566.08 / 81.5% | 76,566.08 / 81.5% | `getCreditAccountSummaries` |
+
+Also matching: Income 79,953.66, Net −1,624.69, Housing Δ −1,049.30, Transportation Δ +1,998.40,
+Family Budget 37 rows / 29,356.73.
+
+### Acceptance, checked
+| Check | Result |
+|---|---|
+| Current month, and a past month via `?month=2026-09` | Both render; `?month=` is validated and falls back rather than erroring |
+| Numbers match budgettracker | Three figures above, plus six more |
+| Loading | Proven by the streamed HTML: a response cut at 3s while the query took 6s already carries `aria-busy="true"` and the panel headers |
+| Error | Rendered by forcing a throw in a disposable copy: headline, digest reference, "Try again" |
+| Empty | November 2026 has no rows: "No entries for November 2026" |
+| 390 / 768 / 1440, light and dark | No horizontal page scroll at any width (`scrollWidth === innerWidth`); sidebar at 1440, tab row below 900; KPI strip 6-up then 2-up; Trend and Share columns hidden below 700 |
+| `next build` | Passes |
+
+**Not exercised locally:** the over-budget `Flag`, the dashed budget line and the red day bars.
+No `BudgetPlan` row exists in the local mirror for any month, and this app must never write one.
+Those paths are built and typed but have not been seen with real data.

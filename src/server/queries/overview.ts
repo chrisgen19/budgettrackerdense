@@ -1,0 +1,298 @@
+import "server-only";
+import type { PrismaClient } from "@prisma/client";
+import { getLabelBreakdown, getMonthlySummary, getSpendingTrends } from "@bt/lib/budget-queries";
+import { getBudgetPerformance } from "@bt/lib/budget-plans";
+import {
+  type CreditAccountSummary,
+  currentMonthKey,
+  getCreditAccountSummaries,
+  monthWindow,
+  shiftMonthKey,
+} from "@bt/lib/credit-account-queries";
+import { roundMoney } from "@bt/lib/money";
+import type { LabelBreakdownItem, MonthSummary } from "@bt/lib/budget-query-types";
+import { fetchCategoryByMonth } from "./category-by-month";
+import { type DailySpend, fetchDailySpend } from "./daily-spend";
+import { type LedgerRow, fetchLedger } from "./ledger";
+
+/**
+ * Everything the Overview page draws, read in one place.
+ *
+ * Nothing here derives a rule that budgettracker already owns. The month's
+ * income and spend come from its `getMonthlySummary`, the month-on-month delta
+ * from its `getSpendingTrends` (which clips both months to the same day, so a
+ * month in progress is not compared against a whole one), and the plan from its
+ * `getBudgetPerformance`. Only the shapes the shared queries do not return --
+ * the per-day burn series, the six-month category matrix behind the sparklines,
+ * and per-source spend -- come from this app's own queries.
+ *
+ * `timezoneOffset` is threaded explicitly into every call. The vendored queries
+ * default it to UTC when it is missing, which silently returns the wrong month.
+ */
+
+/** Months of history behind the sparklines and the category trend lines. */
+const SPARK_MONTHS = 6;
+
+/** Rows in the Recent panel, as in the mockup. */
+const RECENT_ROWS = 9;
+
+export interface OverviewParams {
+  /** `Date.getTimezoneOffset()` minutes, from `users.timezone_offset`. UTC+8 is -480. */
+  timezoneOffset: number;
+  /** `YYYY-MM`. Defaults to the user's current month. */
+  month?: string;
+}
+
+/** A category row: this month, the comparable previous month, and six months of history. */
+export interface OverviewCategory {
+  id: string | null;
+  name: string;
+  color: string;
+  current: number;
+  previous: number;
+  change: number;
+  /** Six monthly totals, oldest first. Empty when the category is new. */
+  spark: number[];
+}
+
+export interface OverviewSource {
+  id: string;
+  name: string;
+  color: string | null;
+  /** Statement due day, for cards. */
+  dueDay: number | null;
+  /** This month's spend on this source. */
+  spend: number;
+  /** What the card owes as at the end of the month shown. `null` for cash. */
+  owed: number | null;
+  utilization: number | null;
+}
+
+/**
+ * The plan's figures, or `null` when no `BudgetPlan` exists for the month.
+ * `null` means the Budget and Remaining KPIs and the chart's budget line are
+ * left out, never filled with an average (docs/plans/06-pages.md).
+ */
+export interface OverviewBudget {
+  planned: number;
+  remaining: number;
+  usedPct: number;
+  /** Straight-line spend per day the plan allows. */
+  pace: number;
+}
+
+export interface OverviewOverBudget {
+  amountOver: number;
+  /** The local day the running total first passed the plan, `YYYY-MM-DD`. */
+  dayCrossed: string | null;
+  projected: number;
+  /** Projected month end over plan, as a ratio: 0.11 is 11% over. */
+  overBy: number;
+}
+
+export interface Overview {
+  month: string;
+  monthLabel: string;
+  previousMonth: string;
+  isCurrentMonth: boolean;
+  progress: { daysElapsed: number; daysInMonth: number; isPartial: boolean };
+  income: number;
+  spent: number;
+  net: number;
+  /** Spend per day so far. */
+  burnPerDay: number;
+  /** Projected month-end spend, or `null` for a month that has not started. */
+  projected: number | null;
+  /** How this month's spend compares with the previous one, same days counted. */
+  versusPrevious: { change: number; previousTotal: number; throughDay: number | null };
+  budget: OverviewBudget | null;
+  overBudget: OverviewOverBudget | null;
+  /** Six months ending at `month`, oldest first. */
+  monthly: MonthSummary[];
+  daily: DailySpend;
+  categories: OverviewCategory[];
+  labels: LabelBreakdownItem[];
+  sources: OverviewSource[];
+  recent: LedgerRow[];
+  /** Nothing was logged in this month at all. */
+  isEmpty: boolean;
+}
+
+/** Whole months from `from` to `to`, never negative. */
+export function monthsApart(from: string, to: string): number {
+  const [fromYear, fromMonth] = from.split("-").map(Number) as [number, number];
+  const [toYear, toMonth] = to.split("-").map(Number) as [number, number];
+
+  return Math.max((toYear - fromYear) * 12 + (toMonth - fromMonth), 0);
+}
+
+/**
+ * Six months ending at `month`.
+ *
+ * `getMonthlySummary` only counts back from today, so viewing September in
+ * November means asking for enough months to reach it and keeping the window
+ * that ends there. Slicing its output rather than writing a second monthly
+ * rollup keeps one definition of what a month's income and spend are.
+ */
+export function sparkWindow(summary: MonthSummary[], month: string): MonthSummary[] {
+  const end = summary.findIndex((row) => row.monthKey === month);
+  if (end === -1) return summary.slice(-SPARK_MONTHS);
+
+  return summary.slice(Math.max(end + 1 - SPARK_MONTHS, 0), end + 1);
+}
+
+/** Spend per source: one ledger total per card, plus everything with no card. */
+async function fetchSources(
+  prisma: PrismaClient,
+  userId: string,
+  month: string,
+  timezoneOffset: number,
+  cards: CreditAccountSummary[],
+): Promise<OverviewSource[]> {
+  const totalsFor = async (creditAccountId: string | "none") => {
+    const ledger = await fetchLedger(prisma, userId, {
+      month,
+      timezoneOffset,
+      type: "EXPENSE",
+      creditAccountId,
+      limit: 1,
+    });
+    return ledger.totals.expenses;
+  };
+
+  const [cashSpend, cardSpends] = await Promise.all([
+    totalsFor("none"),
+    Promise.all(cards.map((card) => totalsFor(card.id))),
+  ]);
+
+  return [
+    {
+      id: "cash",
+      name: "Cash / debit",
+      color: null,
+      dueDay: null,
+      spend: cashSpend,
+      owed: null,
+      utilization: null,
+    },
+    ...cards.map((card, index) => ({
+      id: card.id,
+      name: card.name,
+      color: card.color,
+      dueDay: card.dueDay,
+      spend: cardSpends[index] ?? 0,
+      owed: card.balance,
+      utilization: card.utilization,
+    })),
+  ];
+}
+
+/** Join the clipped month-on-month trend onto the colours and history of the matrix. */
+function buildCategories(
+  trends: Awaited<ReturnType<typeof getSpendingTrends>>,
+  matrix: Awaited<ReturnType<typeof fetchCategoryByMonth>>,
+): OverviewCategory[] {
+  const byName = new Map(matrix.rows.map((row) => [row.name, row]));
+
+  return trends.byCategory
+    .filter((category) => category.current > 0 || category.previous > 0)
+    .map((category) => {
+      const row = byName.get(category.name);
+      return {
+        id: row?.id ?? null,
+        name: category.name,
+        color: row?.color ?? "var(--muted)",
+        current: category.current,
+        previous: category.previous,
+        change: category.change,
+        spark: row?.amounts ?? [],
+      };
+    })
+    .sort((a, b) => b.current - a.current);
+}
+
+export async function fetchOverview(
+  prisma: PrismaClient,
+  userId: string,
+  params: OverviewParams,
+): Promise<Overview> {
+  const { timezoneOffset } = params;
+  const thisMonth = currentMonthKey(timezoneOffset);
+  const month = params.month ?? thisMonth;
+  const previousMonth = shiftMonthKey(month, -1);
+
+  const [summary, budget, trends, matrix, daily, labels, cards, ledger] = await Promise.all([
+    getMonthlySummary(prisma, userId, {
+      months: monthsApart(month, thisMonth) + SPARK_MONTHS,
+      timezoneOffset,
+    }),
+    getBudgetPerformance(userId, month, timezoneOffset),
+    getSpendingTrends(prisma, userId, { currentMonth: month, previousMonth, timezoneOffset }),
+    fetchCategoryByMonth(prisma, userId, { endMonth: month, months: SPARK_MONTHS, timezoneOffset }),
+    fetchDailySpend(prisma, userId, { month, timezoneOffset }),
+    getLabelBreakdown(prisma, userId, { month, timezoneOffset, type: "EXPENSE" }),
+    getCreditAccountSummaries(prisma, userId, { asOf: monthWindow(month, timezoneOffset).end }),
+    fetchLedger(prisma, userId, { month, timezoneOffset, limit: RECENT_ROWS }),
+  ]);
+
+  const monthly = sparkWindow(summary, month);
+  const row = monthly.find((entry) => entry.monthKey === month);
+  const income = row?.income ?? 0;
+  const spent = row?.expenses ?? 0;
+  const { daysElapsed, daysInMonth, isPartial } = budget.progress;
+
+  const burnPerDay = daysElapsed > 0 ? roundMoney(spent / daysElapsed) : 0;
+  const projected = daysElapsed > 0 ? roundMoney((spent / daysElapsed) * daysInMonth) : null;
+
+  // `plan === null` is the whole test: no plan, no budget figures anywhere.
+  const planned = budget.plan ? budget.totals.plannedExpenses : 0;
+  const overview: OverviewBudget | null =
+    budget.plan && planned > 0
+      ? {
+          planned,
+          remaining: roundMoney(planned - spent),
+          usedPct: spent / planned,
+          pace: roundMoney(planned / daysInMonth),
+        }
+      : null;
+
+  const overBudget: OverviewOverBudget | null =
+    overview && spent > overview.planned
+      ? {
+          amountOver: roundMoney(spent - overview.planned),
+          dayCrossed:
+            daily.days.find((day) => day.cumulative > overview.planned)?.day ?? null,
+          projected: projected ?? spent,
+          overBy: (projected ?? spent) / overview.planned - 1,
+        }
+      : null;
+
+  const sources = await fetchSources(prisma, userId, month, timezoneOffset, cards);
+
+  return {
+    month,
+    monthLabel: budget.periodLabel,
+    previousMonth,
+    isCurrentMonth: month === thisMonth,
+    progress: { daysElapsed, daysInMonth, isPartial },
+    income,
+    spent,
+    net: roundMoney(income - spent),
+    burnPerDay,
+    projected,
+    versusPrevious: {
+      change: trends.totalChange,
+      previousTotal: trends.previousTotal,
+      throughDay: trends.throughDay,
+    },
+    budget: overview,
+    overBudget,
+    monthly,
+    daily,
+    categories: buildCategories(trends, matrix),
+    labels: labels.labels,
+    sources,
+    recent: ledger.rows,
+    isEmpty: ledger.totals.count === 0,
+  };
+}

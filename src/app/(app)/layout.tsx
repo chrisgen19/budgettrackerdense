@@ -1,7 +1,7 @@
 import { KeyboardProvider } from "@/components/shell/keyboard-provider";
 import { Sidebar } from "@/components/shell/sidebar";
 import { TopBar } from "@/components/shell/top-bar";
-import { currentMonthKey } from "@/lib/month";
+import { currentMonthKey } from "@bt/lib/credit-account-queries";
 import { requireCurrentUser } from "@/server/session";
 
 /**
