@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+/*
+ * Placeholder tokens only. The real token set (light + dark, money/mono
+ * scales, panel chrome) arrives in phase 05, docs/plans/05-design-system.md.
+ */
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
