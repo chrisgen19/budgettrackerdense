@@ -5,12 +5,16 @@ import { saveEntry } from "@/app/(app)/new/actions";
 import { parseCommand } from "@/lib/command-parser";
 import { DISMISS_EVENT } from "@/lib/dismiss";
 import { choose as chooseOverride, readyToSave, resolveDraft, type Overrides } from "@/lib/entry-draft";
+import { attemptFor, type SaveAttempt } from "@/lib/save-attempt";
 import type { EntryContext, RecentEntry } from "@/server/queries/new-entry";
 import { ParseTable, type Choose } from "./parse-table";
 import { EntryLine, RecentEntries } from "./recent-entries";
 import { FAILURE_TEXT, SaveBar } from "./save-bar";
 
-/** A fresh idempotency key. Kept until a save succeeds, so a retry replays rather than duplicates. */
+/**
+ * A fresh idempotency key. Kept with the payload it was sent with until a save
+ * succeeds, so retrying that same entry replays rather than duplicates.
+ */
 const newKey = () => `dense-${crypto.randomUUID()}`;
 
 type Status =
@@ -27,7 +31,8 @@ export function EntryForm({ context }: { context: EntryContext }) {
   const input = useRef<HTMLInputElement>(null);
   const [text, setText] = useState("");
   const [overrides, setOverrides] = useState<Overrides>({});
-  const [key, setKey] = useState(newKey);
+  // The last unconfirmed save. Its key is reused only for the identical entry.
+  const [pendingAttempt, setPendingAttempt] = useState<SaveAttempt | null>(null);
   const [savedDraft, setSavedDraft] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [recent, setRecent] = useState(context.recent);
@@ -61,11 +66,13 @@ export function EntryForm({ context }: { context: EntryContext }) {
     // Enter on a line already saved does nothing: a second save would need a new key and duplicate it.
     if (!context.canSave || !verdict.ok || pending || alreadySaved) return;
     const entry = verdict.input;
+    const attempt = attemptFor(pendingAttempt, signature, newKey);
+    setPendingAttempt(attempt);
 
     startTransition(async () => {
       let result;
       try {
-        result = await saveEntry(entry, key);
+        result = await saveEntry(entry, attempt.key);
       } catch {
         setStatus({ kind: "failed", message: FAILURE_TEXT.WRITE_FAILED });
         return;
@@ -76,7 +83,7 @@ export function EntryForm({ context }: { context: EntryContext }) {
       }
       setStatus({ kind: "saved", entry: result.entry, replayed: result.replayed });
       setRecent((list) => [result.entry, ...list.filter((row) => row.id !== result.entry.id)].slice(0, 10));
-      setKey(newKey());
+      setPendingAttempt(null);
       if (thenClear) clear();
       else setSavedDraft(signature);
     });
