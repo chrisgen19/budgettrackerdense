@@ -149,3 +149,86 @@ Family Budget 37 rows / 29,356.73.
 **Not exercised locally:** the over-budget `Flag`, the dashed budget line and the red day bars.
 No `BudgetPlan` row exists in the local mirror for any month, and this app must never write one.
 Those paths are built and typed but have not been seen with real data.
+
+## Ledger, as built (Nov 2026)
+The second page of this phase. Overview and Ledger are done; six remain.
+
+**`fetchLedgerPage` (`src/server/queries/ledger-page.ts`)** wraps this app's own `fetchLedger` and
+the three lists the filter bar needs (`getCategoryList`, `getLabelList`,
+`getCreditAccountSummaries`). `timezoneOffset` is passed into every call by hand, never defaulted:
+the vendored queries fall back to UTC, which puts a UTC+8 user's late-evening rows on the wrong
+day and so in the wrong day-group.
+
+This is the page the dense ledger was written for. budgettracker's `searchTransactions` filters by
+type, category, amount and description; it has no label or card filter, and returns no day
+grouping. Both are the point here.
+
+**Every filter is a URL parameter** (`src/lib/ledger-filters.ts`, 19 tests): `month`, `range`
+(`today` / `7d`), `from`/`to`, `q`, `cat`, `label` (repeatable), `card` (an id or `none`), `type`,
+`min`, `max`, `page`, and `tx` for the open row. Consequences worth stating:
+- The filter bar is links and one GET form, so the server renders the result and nothing waits on
+  JavaScript. Chips are `FilterLink`, a new primitive: `aria-current`, not `aria-pressed`, because
+  a link is not a toggle button.
+- Any change but paging returns to page 1. Staying on page 7 of a list that now has two pages
+  shows an empty table and reads as "no results".
+- An explicit `from`/`to` wins over `month`, because the shared queries refuse both at once.
+- Anything malformed is dropped rather than raised: a stale link shows an unfiltered month.
+  A day is validated by round-tripping it through `shiftCalendarDay`, because `Date.parse` accepts
+  `2026-02-31` and silently rolls it to 3 March.
+
+**The drawer is a URL, not client state.** `?tx=` renders a read-only panel inside a native
+`<dialog>`, so a row is shareable, the back button closes it, and Escape and focus trapping come
+from the platform. `fetchTransactionDetail` is a separate one-row read: a table of 50 rows does not
+need provenance, the linked bill or the receipt, and joining them per row would be three more reads
+for data nobody is looking at. It scopes by `userId` inside the `where`, not by a comparison after
+the fetch. Editing stays in budgettracker; the panel links there.
+
+**Keyboard.** `j`/`k` move through `[data-row]`, skipping the day headings, and Enter follows the
+row's description link, which is the same `?tx=` URL. `Esc` now clears the filters: the provider
+announces a `dense:dismiss` event when it had no dialog of its own open, and the page listens
+(`src/lib/dismiss.ts`). It only listens when something is actually filtered, so Escape on a plain
+list does not push a pointless history entry.
+
+**Not applicable here:** the instruction to omit budget figures without a plan belongs to the
+Overview. The Ledger shows no budget figures at all; its header totals are sums of the matched
+rows, over the whole filtered set rather than the visible page.
+
+### Figures spot-checked against budgettracker
+budgettracker's own source was run against the same local database, as the owner role, for
+September 2026 with `timezoneOffset: -480`.
+
+| Figure | Dense | budgettracker | Source compared |
+|---|---|---|---|
+| All rows, September | 140 rows, in 79,953.66, out 81,578.35, net −1,624.69 | identical | `searchTransactions` |
+| Expenses only | 138 rows, 81,578.35 | 138 / 81,578.35 | `searchTransactions` with `type: EXPENSE` |
+| Search "coffee" | 5 rows, 3,959.18 | 5 / 3,959.18 | `searchTransactions` with `search` |
+
+Transportation as a category also matches on both sides: 45 rows, 6,323.80 (`getSpendingByCategory`
+and `searchTransactions`' own `byCategory`).
+
+The two filters budgettracker has no equivalent for were checked against the Overview's label
+breakdown instead: label TNVS gives 18 rows / 4,781.80, the same figure `getLabelBreakdown` reports.
+Card filtering gives 138 rows on cash and 0 on BPI, which is right: no September row was put on the
+card.
+
+### Acceptance, checked
+| Check | Result |
+|---|---|
+| Current month, and a past month via `?month=2026-09` | Both render |
+| Numbers match budgettracker | Three figures above, plus two more |
+| Pagination | 50 per page, "51-100 of 140", page 3 holds the remaining 40; totals stay over the whole set |
+| Day grouping and subtotals | 11 groups in September, each with its own subtotal; income rows green with a `+` |
+| Filters | Label, card, category, type, search, min/max and ranges all narrow the list and the header totals |
+| Drawer | `?tx=` opens a read-only panel with provenance, labels, the bill and the scanned receipt |
+| `j` / `k` / Enter | Move through rows, skip day headings, open the selected row |
+| `/` and Esc | Focus the filter field; clear the filters |
+| Loading | Streamed HTML cut at 3s against a 6s query already carries `aria-busy="true"` |
+| Error | Forced throw: headline, digest, "Try again"; never falls back to the empty state |
+| Empty | Two distinct states: "No rows match these filters" and "Nothing logged in November 2026" |
+| 390 / 768 / 1440, light and dark | No horizontal page scroll; only the table scrolls. Labels and Source hidden below 700 |
+| `next build` | Passes |
+
+Three defects found and fixed while checking: filter groups collapsed to slivers inside the
+horizontal scroller (`FilterGroup` needed `shrink-0`); the pagination landmark was also called
+"Pages", which is the shell's mobile tab row; and the amount inputs pushed the whole page sideways
+at 390, which the design forbids.

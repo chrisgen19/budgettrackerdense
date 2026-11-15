@@ -46,12 +46,15 @@ export function FilterToken({
 }
 
 /**
- * A labelled run of tokens (`.d-fgroup`). Scrolls sideways on a phone rather
- * than wrapping, so the groups stay in their documented order.
+ * A labelled run of tokens (`.d-fgroup`).
+ *
+ * `shrink-0` because several groups sit side by side in one horizontal
+ * scroller: without it flexbox compresses every group to share the width and
+ * the chips collapse to slivers. The row around them is what scrolls.
  */
 export function FilterGroup({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="no-scrollbar flex max-w-full items-center gap-1 overflow-x-auto" role="group" aria-label={label}>
+    <div className="flex shrink-0 items-center gap-1" role="group" aria-label={label}>
       <b className="mr-0.5 ml-1.5 self-center text-label font-medium text-muted">{label}</b>
       {children}
     </div>

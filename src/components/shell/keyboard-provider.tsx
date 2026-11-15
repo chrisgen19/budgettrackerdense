@@ -9,6 +9,7 @@ import {
   isTypingTarget,
   matchKey,
 } from "@/lib/keyboard";
+import { DISMISS_EVENT } from "@/lib/dismiss";
 import { ROW_COMMAND_EVENT, type RowCommandDetail, isRowCommand } from "@/lib/row-commands";
 import { ShortcutSheet } from "./shortcut-sheet";
 import { useThemeToggle } from "./theme-toggle";
@@ -38,12 +39,16 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
       if (command === "new-entry") router.push("/new");
       if (command === "toggle-theme") toggle();
       if (command === "show-shortcuts") setShortcutsOpen(true);
-      if (command === "dismiss") setShortcutsOpen(false);
+      if (command === "dismiss") {
+        // Only the page knows what its filters are; see src/lib/dismiss.ts.
+        if (shortcutsOpen) setShortcutsOpen(false);
+        else document.dispatchEvent(new CustomEvent(DISMISS_EVENT));
+      }
       if (command === "focus-search") {
         document.querySelector<HTMLInputElement>(`[${SEARCH_FIELD_ATTRIBUTE}]`)?.focus();
       }
     },
-    [router, toggle],
+    [router, toggle, shortcutsOpen],
   );
 
   useEffect(() => {
