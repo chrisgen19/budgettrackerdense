@@ -279,3 +279,77 @@ back as genuinely empty.
 | Loading | Streamed HTML cut at 3s against a 6s query already carries `aria-busy="true"` and both panel headers |
 | Error | Forced throw: headline, digest, "Try again"; never a blank chart |
 | Empty range | `?month=2025-06&months=3`: "Nothing logged between April 2025 to June 2025" |
+
+## Cards, as built (Nov 2026)
+The fourth and fifth pages. Overview, Ledger, Reports and Cards are done; four remain.
+
+**`src/server/queries/cards.ts`** wraps budgettracker's own reads and derives nothing again:
+`getCreditAccountSummaries` for the list, `getCreditAccountDetail` for one card's month,
+`describeCardInterest` for the untracked-versus-zero distinction, `overallUtilizationOf` for the
+portfolio ratio. `timezoneOffset` goes into every call explicitly: which month a purchase falls in
+is the user's question, not the container's.
+
+### A card payment is not a transaction
+The rule the pages are built around (budgettracker `.claude/rules/cards.md`). A purchase is an
+ordinary EXPENSE carrying `credit_account_id` and counts everywhere expenses count; paying the card
+is a `CreditPayment` row that lives outside `transactions` entirely, so no expense query needs a
+filter to avoid counting the money twice.
+
+What that means here:
+- The detail page lists purchases and payments in **two separate panels**, never summed. The
+  Payments panel's meta says so on screen.
+- The balance block shows them on separate lines, and the only total is the closing balance.
+- `src/server/queries/cards.test.ts` pins it against the vendored arithmetic, along with the
+  credit-versus-payment distinction, the unclamped utilization and the interest states.
+- Verified against the data: September's expense total is 81,578.35 both in budgettracker and here,
+  with the month's 5,000 card payment **not** in it. August's 95,313.87 does include the card's
+  7,295.28 of purchases -- filtering the dense ledger by card and by cash splits it exactly
+  (7,295.28 + 88,018.59 = 95,313.87).
+
+### Other rules kept
+- **Only the bar clamps.** `limitBarPercent` rounds and clamps the fill to 0-100 because a bar has
+  no width past full; the percentage printed beside it is the server's untouched figure. 81.5%
+  prints as 81.5%, and 108.3% would print as 108.3%.
+- **Interest: untracked is not zero.** This card has never had an interest row logged, so it reads
+  "not tracked". A "0" would present a card carrying 76,566.08 as free to hold.
+- **Null is unknown, not zero.** No APR, no minimum and no planned payment are all recorded as
+  absent: "none set", never 0. The observed payment is null below three payments -- one transfer is
+  not a habit -- and says how many months were actually observed.
+- **Archived cards are included**, because deleting a card with history archives it whatever it
+  still owes.
+
+### A bug the mirror caught
+Deriving the month's closing balance as `opening + purchases - payments - credits` is wrong
+whenever the card's own `openingBalanceDate` falls inside the month. This card's recorded balance
+of 74,270.80 is dated 6 August, so August opens at 0 and the derived close came out at 7,295.28
+instead of 81,566.08 -- short by the whole opening balance. Both bounds are now read the same way,
+as a summary `asOf` an instant, and whatever the month's activity does not explain is surfaced as
+its own line, "Card opened with". Every month from July to October now reconciles exactly.
+
+### Figures spot-checked against budgettracker
+budgettracker's own source, same local database, owner role, `timezoneOffset: -480`.
+
+| Figure | Dense | budgettracker | Source compared |
+|---|---|---|---|
+| BPI owed / limit / available / utilization | 76,566.08 / 94,000 / 17,433.92 / 81.5% | identical | `getCreditAccountSummaries` |
+| August on the card | 6 purchases, 7,295.28; no payments | identical | `getCreditAccountDetail` |
+| September expense total, with a 5,000 card payment in the month | 81,578.35 | 81,578.35 | `searchTransactions`, confirming the payment is in no expense total |
+
+Also matching: September's card totals (0 purchases, 5,000 paid), interest `everLogged: false`, and
+the observed payment staying null at two months observed.
+
+### Acceptance, checked
+| Check | Result |
+|---|---|
+| List, and detail for a past month via `?month=` | Both render; August, September and October all reconcile |
+| Numbers match budgettracker | Three figures above, plus three more |
+| Loading | Both routes' streamed HTML cut at 3s against a 6s query carries `aria-busy="true"`; the nested detail boundary renders inside the list's |
+| Error | Forced throws on both: headline, digest, "Try again", and "All cards" on the detail |
+| Empty | A month with no activity still shows the carried-over balance, not a blank page |
+| 390 / 768 / 1440, light and dark | No horizontal page scroll; the two-column panels stack below 900 |
+| `next build` | Passes |
+
+**Known limitation:** an unknown card id renders the 404 page but the response status stays 200.
+The app shell streams before the page body or `generateMetadata` runs, so the status is already
+committed; calling `notFound()` from either place does not change it. Measured in `next dev` and
+against a production build. A plain missing route still returns a real 404.
