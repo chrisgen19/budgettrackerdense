@@ -48,6 +48,16 @@ ALTER DEFAULT PRIVILEGES FOR ROLE <owner role> IN SCHEMA public GRANT SELECT ON 
 GRANT INSERT ON transactions, transaction_labels TO dense_app;
 ```
 
+### As created locally (Nov 2026)
+Database `budgettracker-nextjs`, owner role `myuser`, Postgres 17.11. The script above ran
+verbatim with those names substituted. Two facts checked against the live database first:
+
+- There are **no sequences** in `public` and neither `transactions` nor `transaction_labels` has an
+  identity column (ids are Prisma-side cuids), so no `GRANT USAGE ON SEQUENCES` is needed.
+- `GRANT SELECT ON ALL TABLES` also covers `_prisma_migrations`. Read-only, left as is.
+
+`TransactionSource` is still `APP, MCP, TELEGRAM`: plan 07 step 0 has not shipped yet.
+
 **Privileges to verify, not assume.** `createTransactionBatch` takes row locks
 (`categoriesAreUsableForWrite` uses `FOR KEY SHARE` on `categories`) and an advisory lock on the
 batch key. Row-lock clauses need the `UPDATE` privilege on the table. Run the quick-entry path
