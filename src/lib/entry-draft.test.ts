@@ -128,6 +128,29 @@ describe("readyToSave", () => {
     expect(ready("241 transpo @tvns", overrides)).toMatchObject({ ok: true, input: { labelIds: ["tnvs"] } });
   });
 
+  it("blocks an unmatched card instead of saving it as cash", () => {
+    expect(ready("241 transpo #bpii")).toEqual({
+      ok: false,
+      problems: ["Fix or remove #bpii, or pick a card or Cash."],
+    });
+  });
+
+  it("saves an unmatched card once a card or Cash is picked", () => {
+    const parsed = parse("241 transpo #bpii");
+    expect(ready("241 transpo #bpii", choose({}, "cardId", "bdo1", parsed))).toMatchObject({
+      ok: true,
+      input: { creditAccountId: "bdo1" },
+    });
+    const cash = ready("241 transpo #bpii", choose({}, "cardId", null, parsed));
+    expect(cash.ok).toBe(true);
+    expect(cash.ok && cash.input.creditAccountId).toBeUndefined();
+  });
+
+  it("lets an explicit Cash pick settle an ambiguous card", () => {
+    const overrides = choose({}, "cardId", null, parse("241 transpo #bdo"));
+    expect(ready("241 transpo #bdo", overrides)).toMatchObject({ ok: true });
+  });
+
   it("sends an explicit empty label list when labels were cleared", () => {
     const overrides = choose({}, "labelIds", [], parse("241 transpo @tnvs"));
     expect(ready("241 transpo @tnvs", overrides)).toMatchObject({ ok: true, input: { labelIds: [] } });

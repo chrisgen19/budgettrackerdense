@@ -39,6 +39,8 @@ export interface Draft {
   dateGiven: boolean;
   /** A label chip choice is in force, which settles any ambiguous `@` token. */
   labelsChosen: boolean;
+  /** A card chip choice (Cash included) is in force, which settles the `#` token. */
+  cardChosen: boolean;
 }
 
 /** The signature each override is checked against. */
@@ -76,6 +78,7 @@ export const resolveDraft = (parsed: ParsedEntry, overrides: Overrides): Draft =
   date: parsed.date,
   dateGiven: parsed.dateGiven,
   labelsChosen: holds(overrides.labelIds, basisOf.labelIds(parsed)),
+  cardChosen: holds(overrides.cardId, basisOf.cardId(parsed)),
 });
 
 /** A choice to remember against the current parse. */
@@ -126,8 +129,13 @@ export const readyToSave = (
   if (unmatched.length > 0 && !draft.labelsChosen) {
     problems.push(`Fix or remove ${unmatched.map((match) => match.token).join(", ")}, or pick labels.`);
   }
-  if (parsed.card && parsed.card.ids.length > 1 && draft.cardId === null) {
-    problems.push(`Pick a card for ${parsed.card.token}.`);
+  // An unmatched `#` token is a typo, not a cash payment: saving it as cash
+  // would put the spend on the wrong source and leave the card balance short.
+  if (parsed.card && !draft.cardChosen) {
+    if (parsed.card.ids.length > 1) problems.push(`Pick a card for ${parsed.card.token}.`);
+    if (parsed.card.ids.length === 0) {
+      problems.push(`Fix or remove ${parsed.card.token}, or pick a card or Cash.`);
+    }
   }
 
   if (problems.length > 0 || draft.amount === null || !category) return { ok: false, problems };
