@@ -88,3 +88,80 @@ matcher (`g` then `o` within 1s).
 - A `/dev/kitchen-sink` page (dev only) renders every primitive and chart in both themes.
 - Visual comparison against the mockup at 1440 and 390 in light and dark (screenshots).
 - Contrast test passes; keyboard matcher tests pass; focus is visible on every interactive element.
+
+## As built (Nov 2026)
+What was built, and the places the mockup had to be adapted rather than copied.
+
+**Tailwind 4.3.3, verified not remembered.** The syntax was checked by compiling `globals.css`
+with the installed compiler before any component was written:
+- `@custom-variant dark (&:where(.dark, .dark *));` emits `.dark\:x:where(.dark, .dark *)`, so a
+  subtree can be dark inside a light page. That is what lets `/dev/primitives` show both themes in
+  one screenshot.
+- `@theme inline` is what the token block needs. Without `inline`, every utility bakes in the
+  light value; with it, utilities emit `var(--ink)` and the `.dark` block re-points them all.
+- `--breakpoint-wide: 700px` / `--breakpoint-desk: 900px` reproduce the mockup's two
+  `@container stage` queries as media queries (here the shell *is* the page, so there is no stage
+  to measure). **Only these two are used.** Tailwind sorts custom pixel breakpoints before the
+  built-in rem ones, so mixing `sm:` with `wide:` would cascade in the wrong order.
+
+**Fonts.** `IBM_Plex_Sans_Condensed` and `IBM_Plex_Mono` from `next/font/google`, with explicit
+`weight` arrays (400/500/600 and 400/500): neither has a variable axis in this Google release, so
+a weight that is not listed is not downloaded. Both are self-hosted at build time, which is why
+the CSP added in plan 04 needs no font exception. Verified in the browser:
+`font-family` resolves to `"IBM Plex Sans Condensed", "IBM Plex Sans Condensed Fallback", ...`.
+
+**Theme switching** is a `.dark` class on `<html>`, applied before first paint by a small inline
+script (`src/lib/theme.ts`), with `localStorage` holding `light`/`dark` and nothing meaning
+"follow the OS". `useThemeToggle` holds no React state: the theme lives on the document element,
+and mirroring it into state only buys a render that renders nothing new.
+
+**Contrast.** `src/lib/contrast.ts` computes WCAG ratios, `src/lib/tokens.ts` mirrors the token
+values, and `src/lib/tokens.test.ts` parses `globals.css` to assert the mirror is honest -- so the
+34 pair assertions in `contrast.test.ts` measure what is actually painted. Every pair clears AA.
+The measured minimums are **5.31 light** (accent on bg) and **4.69 dark** (muted on a hovered
+row); the plan quoted 5.7/6.0 for a smaller set of pairs that left those two out.
+
+**Keyboard.** `src/lib/keyboard.ts` is the pure matcher and the map; the provider
+(`src/components/shell/keyboard-provider.tsx`) feeds it keys. A prefix is always consumed, so
+`g x` is a miss rather than a fresh `x` -- which matters, because `t` alone toggles the theme and
+`g t` goes to Labels. Row commands (`j`/`k`/`Enter`) are forwarded as a DOM CustomEvent
+(`src/lib/row-commands.ts`) and handled by `<RowSelection>`, which moves a `data-selected`
+attribute rather than React state: a highlight should not re-render a 300-row table.
+
+### Deviations from the mockup, and why
+| Change | Why |
+|---|---|
+| `/dev/primitives`, not `/dev/kitchen-sink` | Christian asked for that path. Dev only: `notFound()` when `NODE_ENV === "production"`. |
+| `MonthBars` month labels are HTML under the plot, not `<text>` inside it | The plot stretches with `preserveAspectRatio="none"`, which widens glyphs by however much wider the panel is than the 520pt viewBox. Legible in the mockup's column, badly distorted in a 1200px panel. Bars are rectangles and do not care; text does. |
+| `DataTable` has `hideHeader`, which renders `<thead>` `sr-only` | The mockup's "Recent" panel simply omits the header row. Hiding it visually keeps the columns named for a screen reader; the point is density, not stripping the table's meaning. |
+| `Money` takes an explicit `tone`, not one derived from the sign | In the mockup an expense is plain ink with a `−` and only income is green. The caller says what the number *means*. |
+| `--accent-ink` token added | The mockup hard-codes `#fff` on the accent and overrides it to `#0B1220` in dark (`.d-opt`, `.d-save`). That is a token, so it is one here. |
+| `Sparkline` is `aria-hidden` unless given a `label` | Beside a KPI it repeats a figure already in the text. The larger charts all carry `role="img"` and a summarising `aria-label`. |
+
+### Acceptance, checked
+Screenshots at 1440 and 390, light and dark, compared side by side against the mockup served from
+`design-reference/` (Overview screen, both widths).
+
+| Check | Result |
+|---|---|
+| `/dev/primitives` renders every primitive and chart in both themes | Yes, light above and dark below on one page |
+| Shell at 1440 | 196px sidebar, `grid-template-columns: 196px 1244px`, mobile tab row hidden |
+| Shell at 390 | Sidebar hidden, tab row shown, KPI strip 2-up, **no horizontal page scroll** (`scrollWidth === 390`); only the tables scroll, inside their own wrappers |
+| Fonts | Both Plex families resolve, self-hosted |
+| Contrast test | 34 pairs, all at or above 4.5 |
+| Keyboard matcher tests | 11 tests, including the 1s prefix expiry and prefix consumption |
+| `?` sheet | Opens, groups as Go to / Actions / Rows, closes on Escape |
+| `t` | Toggles `.dark` and back |
+| `j` / `k` | Move the selection through `[data-row]`, highlight is `rgba(31, 95, 209, .1)` |
+| `/` | Focuses the field carrying `data-search-field` |
+| Keys while typing | Ignored: `t` in the search field does not toggle the theme |
+| `g l` | Navigates (to `/ledger`, a 404 until plan 06) |
+| Focus ring | `2px solid rgb(31, 95, 209)` on interactive elements |
+| `next build` | Passes, including the TypeScript pass |
+
+### Notes for the next phase
+- `/ledger`, `/reports`, `/new`, `/cards`, `/budgets`, `/bills`, `/labels` are linked from the
+  shell and the keyboard map but do not exist yet: plan 06.
+- `src/app/(app)/dev/primitives/sample-data.ts` holds the mockup's September 2026 figures. It is
+  only read by that page; phase 06 wires the same components to `src/server/queries`.
+- The Overview page is still a placeholder, now inside the shell and using the primitives.

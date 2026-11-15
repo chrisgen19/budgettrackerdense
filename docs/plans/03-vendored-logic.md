@@ -57,12 +57,17 @@ Watch-outs found in the audit:
 8. Script: `"sync:vendor": "tsx scripts/sync-vendor.ts"`.
 
 ## `scripts/check-drift.ts`
-- Re-runs the schema and vendor transforms **in memory** against the current budgettracker
-  checkout and compares to what is on disk. Exit 1 listing each differing file.
+- Re-runs the schema and vendor transforms **in memory** against budgettracker at the commit in
+  `prisma/.source-sha`, read straight from git objects (`pinnedSource()` in
+  `scripts/lib/source.ts`), and compares to what is on disk. Exit 1 listing each differing file.
+  It passes whichever branch the checkout has open, as long as that commit has been fetched.
 - Also fails if any file under `src/vendor/bt/` lacks the GENERATED header (hand-added file).
-- Script: `"check:drift": "tsx scripts/check-drift.ts"`.
-- In CI (plan 08) budgettracker is checked out next to this repo at `main`, so drift means
-  "budgettracker main moved; re-sync and review the diff".
+- When the checkout's HEAD is a different commit it prints a note, without failing. Taking
+  budgettracker's changes is a deliberate `pnpm sync:schema && pnpm sync:vendor` and a reviewed
+  diff, not something a check should force.
+- Script: `"check:drift": "tsx scripts/check-drift.ts"`. The drift test in `pnpm test`
+  (`scripts/vendored-logic.test.ts`) runs the same pinned comparison. The sync scripts still read
+  the checkout as it is on disk.
 
 ## ESLint and TypeScript
 - Exclude `src/vendor/bt/**` and `prisma/**` from ESLint (budgettracker lints them in its own
@@ -88,3 +93,38 @@ style, and gets unit tests for the date windows.
 - A smoke test (`scripts/smoke-reads.ts`, run by hand against local) prints
   `getMonthlySummary` for the last 6 months and `getCreditAccountSummaries` for the user, using
   the user's own `timezoneOffset`.
+
+## As built (Nov 2026)
+What the sync actually produced, and the two decisions the plan did not anticipate.
+
+**26 vendored files** from entry points `budget-queries`, `budget-plans`, `credit-account-queries`,
+`transaction-writes`, `period-progress` and `types/index`, discovered transitively with
+`ts.preProcessFile`. The audit's list was right, plus `bill-utils` and `analytics-buckets`.
+`assessment-facts.ts` comes along for its types, as expected; `assessment-facts-query.ts` does not.
+The transforms are pure modules under `scripts/lib/` (`schema-sync.ts`, `vendor-sync.ts`,
+`drift.ts`), so `check-drift.ts` re-runs them in memory rather than re-implementing them.
+
+**`zod` 3.25.76** installed in this phase, matching budgettracker's lockfile, for
+`validations.ts`.
+
+**TypeScript: two configs.** budgettracker's source is written without
+`noUncheckedIndexedAccess`, which plan 01 turned on here, and it produces ~120 errors under it.
+Excluding `src/vendor/bt` from `tsconfig.json` does not help: the files enter the type graph
+through imports. So:
+- `tsconfig.json` keeps the flag. It is what the editor uses, and `pnpm type-check` runs it as a
+  second pass with diagnostics under `src/vendor/bt` dropped (`scripts/type-check.ts`).
+- `tsconfig.build.json` extends it with the flag off, and is what `next build` uses
+  (`typescript.tsconfigPath`). `pnpm type-check` runs it first, unfiltered, so a vendored file
+  that no longer fits this app's Prisma client or config still fails.
+Never edit a vendored file to satisfy a rule this repo added.
+
+**Vitest** aliases `server-only` to that package's own empty module, the way the server build
+resolves it; without that, importing anything under `src/server/` throws in a test.
+`pnpm smoke:reads` runs under `node --conditions=react-server` for the same reason, and loads
+`.env` itself.
+
+**Dense queries** are in `src/server/queries/`: `period.ts` (window resolution, delegating to the
+vendored `describePeriod` and `monthWindow`), `ledger.ts`, `category-by-month.ts`,
+`label-by-month.ts`, `daily-spend.ts`. Each takes `(prisma, userId, params)` with an explicit
+`timezoneOffset`. 45 unit tests cover the date windows, the label and card filters, local-day
+grouping and the month-column folding.

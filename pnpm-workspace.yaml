@@ -1,0 +1,9 @@
+allowBuilds:
+  sharp: false
+  unrs-resolver: false
+  # Prisma's postinstall fetches and places the query engine binaries.
+  '@prisma/client': true
+  '@prisma/engines': true
+  prisma: true
+  # tsx ships esbuild, whose postinstall places its native binary.
+  esbuild: true

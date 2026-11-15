@@ -39,8 +39,10 @@ Session cookie `Secure` in production.
 
 ## CI (GitHub Actions)
 On push and PR: checkout this repo and budgettracker (`main`) side by side, `pnpm install`,
-`pnpm lint`, `pnpm type-check`, `pnpm test`, `pnpm check:drift`. Drift failing means budgettracker
-changed something this app copies: re-sync locally, read the diff, adjust, commit.
+`pnpm lint`, `pnpm type-check`, `pnpm test`, `pnpm check:drift`. Drift is checked against the
+commit in `prisma/.source-sha`, so failing means a generated file was edited here. When
+budgettracker `main` has moved past that commit, `check:drift` prints a note instead: re-sync
+locally, read the diff, adjust, commit.
 
 ## Acceptance
 - Logged out: every page redirects to `/login`; `/api/health` returns 200.

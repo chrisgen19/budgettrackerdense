@@ -17,6 +17,7 @@ database**, so each can stay good at its own job.
 | v1 pages | Overview, Ledger, New entry, Reports, Cards, Budgets, Bills, Labels | Plan 06 |
 | Provenance | New `TransactionSource` value `DENSE` | Needs one expand-only migration PR in budgettracker first (plan 07 step 0) |
 | Future FastAPI | Expected later as the CRUD API | Writes sit behind one seam (plan 09) |
+| Cache Components | Off (`cacheComponents` / `partialPrefetching` removed from `next.config.ts` in phase 01) | Pages read live Postgres per request; no `use cache`, no per-page Suspense tax, no stale money |
 
 ## Architecture
 ```mermaid
