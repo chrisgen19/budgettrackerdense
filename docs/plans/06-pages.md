@@ -353,3 +353,67 @@ the observed payment staying null at two months observed.
 The app shell streams before the page body or `generateMetadata` runs, so the status is already
 committed; calling `notFound()` from either place does not change it. Measured in `next dev` and
 against a production build. A plain missing route still returns a real 404.
+
+## Budgets, as built (Nov 2026)
+The sixth page. Overview, Ledger, Reports, Cards and Budgets are done; Bills, Labels and New entry
+remain.
+
+**`src/server/queries/budgets.ts`** is thin on purpose: budgettracker's `getBudgetPerformance`
+owns the rollover chain, the projection bases, safe-to-spend and the treatment notes, and this app
+re-derives none of it. It reaches the database through the vendored prisma shim, so its signature
+is `(userId, month, tz)`; the timezone is still passed explicitly, because which days count as
+elapsed is the user's question.
+
+The one thing added here is the empty state's look-back: when the month has no plan, the newest
+earlier month that does have one is summarised, so the page can say what was last planned rather
+than only that nothing is.
+
+### No plan means no plan-derived figures
+This is the whole of the page's honesty, and it is not a cosmetic choice. Without a plan
+`getBudgetPerformance` still returns `plannedExpenses: 0`, and therefore
+`remainingExpenses: -81,578.35` for September and `safeToSpend.perDay: 0` for November. Printed,
+those read as *a budget of nothing that has been blown* and *an allowance of nothing per day* --
+a worse and quite different claim from "no budget was set".
+
+So the no-plan state shows only what is true without a plan: income logged, spend logged (all of
+it unbudgeted), net, and how far through the month it is. Planned, remaining, projected and
+safe-to-spend are left out, and the panel says so. **No `BudgetPlan` row exists in the local
+mirror for any month**, so this is the state that renders for every month.
+
+The plan path is built in full -- totals strip, allocations table with kind, carry-in, available,
+actual, remaining, variance and projection, safe-to-spend, treatment notes and revision history --
+and was rendered against a synthetic `BudgetPerformanceData` in a disposable copy to confirm it
+works. It has **not** been seen with real data, and this app must never write a plan to find out.
+
+Null is unknown throughout: `variancePct` is `null` when its base is zero and prints "n/a", not
+"0%"; `projectedExpenses` is `null` before the month starts and prints "not started".
+
+### Figures spot-checked against budgettracker
+budgettracker's own source, same local database, owner role, `timezoneOffset: -480`.
+
+| Figure | Dense | budgettracker | Source compared |
+|---|---|---|---|
+| September: plan | `null` (0 `BudgetPlan` rows in the database) | `null` | `getBudgetPerformance` |
+| September actuals | income 79,953.66, spend 81,578.35, all 81,578.35 unbudgeted | identical | `getBudgetPerformance` totals |
+| September progress | 30/30 days, 100% elapsed, not partial | identical | `getBudgetPerformance` progress |
+
+The actuals cross-check against a second path too: `getMonthlySummary` reports the same 79,953.66
+and 81,578.35 for the month. November agrees as well: 15/30 days, 50% elapsed, `forecastStatus`
+`no-activity`.
+
+### Acceptance, checked
+| Check | Result |
+|---|---|
+| Current month, and a past month via `?month=2026-09` | Both render the no-plan state, correctly named |
+| Numbers match budgettracker | Three figures above, plus the November progress and a second path on the actuals |
+| Data | The plan path rendered against synthetic data; unexercised with real data, as no plan exists |
+| Loading | Streamed HTML cut at 3s against a 6s query carries `aria-busy="true"` and both panel headings |
+| Error | Forced throw: says the read failed and that this is **not** the same as having no plan |
+| Empty | "No budget plan for November 2026", with what is known shown separately |
+| 390 / 768 / 1440, light and dark | No horizontal page scroll; the KPI strip goes 2-up below 900 |
+| `next build` | Passes |
+
+**Primitive fixed while checking:** `Panel`'s header did not wrap, and its right-hand slot is
+`shrink-0`, so a long `meta` squeezed the title to zero width -- at 390 the panel lost its name
+entirely. The header now wraps, and the long explanation moved from the meta slot into the body
+where it belongs.

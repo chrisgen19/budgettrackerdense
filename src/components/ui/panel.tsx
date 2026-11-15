@@ -21,6 +21,10 @@ export interface PanelProps {
 /**
  * The one container in this design: 1px rule, 4px radius, no shadow.
  * Ported from `.d-panel` in design-reference/04-data-dense.html.
+ *
+ * The header wraps. The right-hand slot is `shrink-0`, so without wrapping a
+ * long `meta` squeezes the title to zero width and the panel loses its name --
+ * which is what happened to "What is known without a plan" at 390.
  */
 export function Panel({
   title,
@@ -39,7 +43,7 @@ export function Panel({
       className={`min-w-0 rounded-panel border border-rule bg-panel ${className}`.trimEnd()}
     >
       {hasHeader ? (
-        <header className="flex items-center justify-between gap-2 border-b border-rule px-2.5 py-1.5 text-head font-semibold">
+        <header className="flex flex-wrap items-center justify-between gap-x-2 border-b border-rule px-2.5 py-1.5 text-head font-semibold">
           <span className="truncate">{title}</span>
           <span className="flex shrink-0 items-center gap-2 font-normal text-muted">
             {meta}
