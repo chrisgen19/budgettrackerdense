@@ -7,8 +7,8 @@ export interface Column<Row> {
   align?: "left" | "right";
   /** Mono + tabular numerals for the cell. Implied by `align: "right"` figures. */
   numeric?: boolean;
-  /** Hide below 700px, the way `.hide-m` does. */
-  hideBelow?: "wide";
+  /** Hide below 700px (`wide`, the way `.hide-m` does) or below the 900px desktop layout (`desk`). */
+  hideBelow?: "wide" | "desk";
   /** Clamp and ellipsis, for description columns (`.d-t .desc`). */
   truncate?: boolean;
   cell: (row: Row) => ReactNode;
@@ -44,6 +44,9 @@ export interface DataTableProps<Row> {
   caption?: string;
 }
 
+/** Literal class names, so Tailwind sees them. */
+const HIDE_CLASS = { none: "", wide: "hidden wide:table-cell", desk: "hidden desk:table-cell" } as const;
+
 const alignClass = (column: Column<unknown>) => (column.align === "right" ? "text-right" : "");
 
 const cellClass = <Row,>(column: Column<Row>) =>
@@ -52,7 +55,7 @@ const cellClass = <Row,>(column: Column<Row>) =>
     column.align === "right" ? "text-right" : "",
     column.numeric ? "tnum text-figure" : "",
     column.truncate ? "max-w-[260px] overflow-hidden text-ellipsis" : "",
-    column.hideBelow === "wide" ? "hidden wide:table-cell" : "",
+    HIDE_CLASS[column.hideBelow ?? "none"],
   ]
     .filter(Boolean)
     .join(" ");
@@ -103,7 +106,7 @@ export function DataTable<Row>({
                 className={[
                   "border-b border-rule bg-panel px-2.5 py-[5px] text-meta font-medium text-muted whitespace-nowrap",
                   column.align === "right" ? "text-right" : "text-left",
-                  column.hideBelow === "wide" ? "hidden wide:table-cell" : "",
+                  HIDE_CLASS[column.hideBelow ?? "none"],
                   stickyHeader && !hideHeader ? "sticky top-0 z-1" : "",
                 ]
                   .filter(Boolean)
@@ -173,20 +176,33 @@ function SectionRows<Row>({
   renderRow: (row: Row) => ReactNode;
 }) {
   const trailing = section.total === undefined ? 0 : 1;
-  const span = Math.max(columns.length - trailing, 1);
+  const leading = columns.slice(0, Math.max(columns.length - trailing, 1));
+  const cell = "h-subrow border-b border-rule-2 px-2.5";
 
+  // One cell per column, each with that column's hide class, rather than one
+  // cell spanning them all. A `colSpan` still reserves a track for every
+  // column it covers, hidden ones included, so a spanning label widened the
+  // table past a phone's screen. The label sits in a zero-width box, so it
+  // runs across the empty cells beside it without sizing the first column.
+  // The first column is assumed always visible.
   return (
     <>
       <tr data-section className="bg-bg">
-        <th
-          scope="colgroup"
-          colSpan={span}
-          className="h-subrow border-b border-rule-2 px-2.5 text-left font-medium text-muted whitespace-nowrap"
-        >
-          {section.label}
-        </th>
+        {leading.map((column, index) =>
+          index === 0 ? (
+            <th
+              key={column.key}
+              scope="colgroup"
+              className={`${cell} text-left font-medium text-muted`}
+            >
+              <div className="w-0 whitespace-nowrap">{section.label}</div>
+            </th>
+          ) : (
+            <td key={column.key} className={`${cell} ${HIDE_CLASS[column.hideBelow ?? "none"]}`} />
+          ),
+        )}
         {trailing ? (
-          <td className="h-subrow border-b border-rule-2 px-2.5 text-right tnum text-figure font-medium text-muted">
+          <td className={`${cell} text-right tnum text-figure font-medium text-muted whitespace-nowrap`}>
             {section.total}
           </td>
         ) : null}

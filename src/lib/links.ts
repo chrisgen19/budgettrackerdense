@@ -22,3 +22,8 @@ export function budgetEditorUrl(base?: string): string {
 export function transactionUrl(id: string, base?: string): string {
   return `${budgetTrackerUrl(base)}/transactions?id=${encodeURIComponent(id)}`;
 }
+
+/** The bills page, where bills are set up, paid, skipped and snoozed. */
+export function billsUrl(base?: string): string {
+  return `${budgetTrackerUrl(base)}/bills`;
+}

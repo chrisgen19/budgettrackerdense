@@ -417,3 +417,74 @@ and 81,578.35 for the month. November agrees as well: 15/30 days, 50% elapsed, `
 `shrink-0`, so a long `meta` squeezed the title to zero width -- at 390 the panel lost its name
 entirely. The header now wraps, and the long explanation moved from the meta slot into the body
 where it belongs.
+
+## Bills, as built (Nov 2026)
+The seventh page. Overview, Ledger, Reports, Cards, Budgets and Bills are done; Labels and New
+entry remain.
+
+**`src/server/queries/bills.ts`** wraps budgettracker's own reads: `getUpcomingBills` for what is
+due (its variable-bill estimates and its `isOverdue` rule) and `getBillHistory` for settled
+occurrences (collapsed per occurrence, lateness in the user's days). `timezoneOffset` goes into
+both explicitly: defaulted, "today" becomes UTC's, and between Manila's midnight and UTC's a bill
+due today reads as due tomorrow.
+
+The one dense read is the bills' own settings (`reminderDaysBefore`, `isActive`), because
+`getUpcomingBills` returns neither and the page has to tell "no bills at all" from "none due".
+`getBillHistory` is called with `limit: 2000`: its default of 50 slices the occurrences while its
+summaries cover the whole window, so the per-bill tables would fall short of their own counts.
+
+### Bill dates are calendar days
+budgettracker `.claude/rules/bills.md`. A due date is stored at midnight UTC and means "the 5th"
+for everyone, so the page works from `localDueDate` / `localSnoozeUntil` and formats them in UTC
+(`formatDayKey`). Nothing is shifted by the offset. Only two things are the user's: "today", from
+the vendored `userToday(tz)`, and the day a bill was paid (`localActionDate`), which is an instant.
+Days until due is arithmetic on the two keys, so it is whole by construction
+(`src/lib/bills.ts`, 10 tests, including the 04:00-Manila-is-still-yesterday-in-UTC case).
+
+### What is on the page
+- `?days=7|14|30` (default 30) for how far ahead, `?months=3|6|12` (default 6) for the history.
+  Both are URL parameters; anything else falls back to the default.
+- KPI strip: overdue, due in the window, active bills, paid, paid late, skipped.
+- Due: overdue first, then the window, each section with its subtotal. A variable bill's amount
+  reads "about" (`≈` on a phone) with its basis, never as a flat assertion (budgettracker #217).
+- History: one panel per bill, worst average lateness first, as `getBillHistory` orders them.
+  The paid column is what the linked transaction recorded, not the bill's current amount.
+  Early payments stay early ("1 day early"), never clamped to on time.
+- Read-only: paying, skipping and snoozing go through budgettracker's `settleBill`; the page
+  links there.
+
+### Figures spot-checked against budgettracker
+budgettracker's own source at `a9639d0`, same local database, owner role, `timezoneOffset: -480`,
+on 15 November 2026.
+
+| Figure | Dense | budgettracker | Source compared |
+|---|---|---|---|
+| Overdue total | 5 bills, about 36,163.00 | 36,163, `totalIsEstimate: true` | `getUpcomingBills` |
+| Meralco | due Oct 5, about 5,990.00 from the last payment, 41 days overdue | 5,990, `last-payment`, `2026-10-05`, overdue | `getUpcomingBills` |
+| DMCI Water, 6 months | 4 paid, 3 late, average 41 days late, worst 90 | identical | `getBillHistory` |
+
+Also matching: BRV's Jul 5 occurrence paid Sep 6, 63 days late, 5,400.00; Meralco's Jul 5 paid
+Jul 6, 1 day late, 9,970.00; the window May 15 to Nov 15, 2026. Every due date renders on its
+stored day (Oct 5, not Oct 4).
+
+### Acceptance, checked
+| Check | Result |
+|---|---|
+| Data | Five bills, all overdue; five history panels |
+| Numbers match budgettracker | Three figures above, plus three more |
+| Loading | Streamed HTML cut at 3s against a 6s read carries `aria-busy="true"` |
+| Error | Forced throw: "Could not read your bills", digest, "Try again"; never the empty state |
+| Empty | Three variants, each forced: "No bills set up", "Nothing due in the next 30 days", "No occurrences paid, skipped or snoozed in this window" |
+| 390 / 768 / 1440, light and dark | No horizontal page scroll and no table overflowing its panel. Due shows Bill / When / Amount at 390, adds Due at 768, all six at 1440 |
+| `next build` | Passes |
+
+**Not exercised locally:** a snoozed occurrence. The mirror has 33 PAID logs and 1 SKIPPED and no
+SNOOZED, so the "Snoozed to <day>" and "after N snoozes" paths are built and typed but unseen.
+
+### Primitive fixed while checking
+`DataTable`'s subtotal row put its label in one cell with `colSpan` over every leading column.
+A `colSpan` still reserves a track for each column it covers, hidden ones included, so at 390 the
+Due table was 480px wide in a 364px panel and the amounts sat off-screen. The row now renders one
+cell per column, each with that column's hide class, and the label sits in a zero-width box that
+runs across the empty cells beside it. The Ledger's day groups use the same row and benefit too.
+`hideBelow` also gained `"desk"` (900px) beside `"wide"` (700px).
