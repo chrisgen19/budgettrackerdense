@@ -77,7 +77,8 @@ export interface OverviewSource {
 export interface OverviewBudget {
   planned: number;
   remaining: number;
-  usedPct: number;
+  /** Share of the plan spent, or `null` when the plan sets no expense budget (nothing to divide by). */
+  usedPct: number | null;
   /** Straight-line spend per day the plan allows. */
   pace: number;
 }
@@ -87,8 +88,46 @@ export interface OverviewOverBudget {
   /** The local day the running total first passed the plan, `YYYY-MM-DD`. */
   dayCrossed: string | null;
   projected: number;
-  /** Projected month end over plan, as a ratio: 0.11 is 11% over. */
-  overBy: number;
+  /** Projected month end over plan, as a ratio: 0.11 is 11% over. `null` against a zero plan. */
+  overBy: number | null;
+}
+
+/**
+ * The plan's figures for the month. Only plan existence decides "no plan": a
+ * plan with no expense allocations is a plan of zero, so any spend is over it.
+ */
+export function planFigures(
+  hasPlan: boolean,
+  planned: number,
+  spent: number,
+  daysInMonth: number,
+): OverviewBudget | null {
+  if (!hasPlan) return null;
+
+  return {
+    planned,
+    remaining: roundMoney(planned - spent),
+    usedPct: planned > 0 ? spent / planned : null,
+    pace: roundMoney(planned / daysInMonth),
+  };
+}
+
+/** How far over the plan the month is, or `null` while within it. */
+export function overBudgetFigures(
+  budget: OverviewBudget | null,
+  spent: number,
+  projected: number | null,
+  dayCrossed: string | null,
+): OverviewOverBudget | null {
+  if (!budget || spent <= budget.planned) return null;
+
+  const landing = projected ?? spent;
+  return {
+    amountOver: roundMoney(spent - budget.planned),
+    dayCrossed,
+    projected: landing,
+    overBy: budget.planned > 0 ? landing / budget.planned - 1 : null,
+  };
 }
 
 export interface Overview {
@@ -223,27 +262,13 @@ export async function fetchOverview(
   const projected = daysElapsed > 0 ? roundMoney((spent / daysElapsed) * daysInMonth) : null;
 
   // `plan === null` is the whole test: no plan, no budget figures anywhere.
-  const planned = budget.plan ? budget.totals.plannedExpenses : 0;
-  const overview: OverviewBudget | null =
-    budget.plan && planned > 0
-      ? {
-          planned,
-          remaining: roundMoney(planned - spent),
-          usedPct: spent / planned,
-          pace: roundMoney(planned / daysInMonth),
-        }
-      : null;
-
-  const overBudget: OverviewOverBudget | null =
-    overview && spent > overview.planned
-      ? {
-          amountOver: roundMoney(spent - overview.planned),
-          dayCrossed:
-            daily.days.find((day) => day.cumulative > overview.planned)?.day ?? null,
-          projected: projected ?? spent,
-          overBy: (projected ?? spent) / overview.planned - 1,
-        }
-      : null;
+  const overview = planFigures(Boolean(budget.plan), budget.totals.plannedExpenses, spent, daysInMonth);
+  const overBudget = overBudgetFigures(
+    overview,
+    spent,
+    projected,
+    overview ? (daily.days.find((day) => day.cumulative > overview.planned)?.day ?? null) : null,
+  );
 
   const sources = await fetchSources(prisma, userId, month, timezoneOffset, cards);
 

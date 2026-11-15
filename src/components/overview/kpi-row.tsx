@@ -70,7 +70,7 @@ export function KpiRow({ overview }: { overview: Overview }) {
               bare
             />
           }
-          note={`${formatPercent(budget.usedPct)} used, day ${progress.daysElapsed}/${progress.daysInMonth}`}
+          note={`${budget.usedPct === null ? "no expense budget" : `${formatPercent(budget.usedPct)} used`}, day ${progress.daysElapsed}/${progress.daysInMonth}`}
         />
       ) : (
         <Kpi

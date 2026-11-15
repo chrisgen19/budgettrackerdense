@@ -29,11 +29,11 @@ export function OverBudgetFlag({
           Projected month end{" "}
           <b className="tnum text-figure font-medium">
             {formatAmount(over.projected, { dp: 0 })}
-          </b>{" "}
-          ({formatPercent(over.overBy)} over).
+          </b>
+          {over.overBy === null ? "." : <> ({formatPercent(over.overBy)} over).</>}
         </>
       ) : (
-        <>Finished {formatPercent(over.overBy)} over.</>
+        <>{over.overBy === null ? "The plan sets no expense budget." : `Finished ${formatPercent(over.overBy)} over.`}</>
       )}
     </Flag>
   );
