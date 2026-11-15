@@ -120,6 +120,12 @@ export const readyToSave = (
   if (ambiguous.length > 0 && !draft.labelsChosen) {
     problems.push(`Pick a label for ${ambiguous.map((match) => match.token).join(", ")}.`);
   }
+  // An unmatched token is a typo, not a request for no labels: saving it as
+  // `[]` would silently turn the label schedules off for this entry.
+  const unmatched = parsed.labels.filter((match) => match.ids.length === 0);
+  if (unmatched.length > 0 && !draft.labelsChosen) {
+    problems.push(`Fix or remove ${unmatched.map((match) => match.token).join(", ")}, or pick labels.`);
+  }
   if (parsed.card && parsed.card.ids.length > 1 && draft.cardId === null) {
     problems.push(`Pick a card for ${parsed.card.token}.`);
   }

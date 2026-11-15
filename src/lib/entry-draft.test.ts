@@ -114,6 +114,20 @@ describe("readyToSave", () => {
     expect(ready("241 transpo #bdo", overrides)).toMatchObject({ ok: true, input: { creditAccountId: "bdo2" } });
   });
 
+  it("blocks an unmatched label instead of saving it as no labels", () => {
+    expect(ready("241 transpo @tvns")).toEqual({
+      ok: false,
+      problems: ["Fix or remove @tvns, or pick labels."],
+    });
+    // One good label beside a typo still blocks: the typo was meant to be a label too.
+    expect(ready("241 transpo @tnvs @zzz")).toMatchObject({ ok: false });
+  });
+
+  it("saves an unmatched label once the chips settle it", () => {
+    const overrides = choose({}, "labelIds", ["tnvs"], parse("241 transpo @tvns"));
+    expect(ready("241 transpo @tvns", overrides)).toMatchObject({ ok: true, input: { labelIds: ["tnvs"] } });
+  });
+
   it("sends an explicit empty label list when labels were cleared", () => {
     const overrides = choose({}, "labelIds", [], parse("241 transpo @tnvs"));
     expect(ready("241 transpo @tnvs", overrides)).toMatchObject({ ok: true, input: { labelIds: [] } });
