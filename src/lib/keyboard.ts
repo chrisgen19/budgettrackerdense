@@ -145,6 +145,33 @@ export function isTypingTarget(target: {
   return tag === "input" || tag === "textarea" || tag === "select";
 }
 
+/** Roles that mean "Enter activates me", on elements that are not natively interactive. */
+const ACTIVATION_ROLES = new Set([
+  "button",
+  "link",
+  "checkbox",
+  "radio",
+  "switch",
+  "tab",
+  "menuitem",
+  "menuitemcheckbox",
+  "menuitemradio",
+  "option",
+]);
+
+/**
+ * Whether Enter on this element belongs to the element itself.
+ *
+ * A focused link, button or summary activates on Enter natively; the row-open
+ * shortcut must not swallow that. Takes bare facts, like `isTypingTarget`.
+ */
+export function isActivationTarget(target: { tagName?: string; role?: string | null }): boolean {
+  const tag = target.tagName?.toLowerCase();
+  if (tag === "a" || tag === "button" || tag === "summary") return true;
+
+  return target.role ? ACTIVATION_ROLES.has(target.role) : false;
+}
+
 /** Shortcuts grouped for the `?` sheet, in map order. */
 export function groupedShortcuts(): [Shortcut["group"], Shortcut[]][] {
   const groups = new Map<Shortcut["group"], Shortcut[]>();

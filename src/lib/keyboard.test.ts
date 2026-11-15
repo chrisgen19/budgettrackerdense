@@ -4,6 +4,7 @@ import {
   SHORTCUTS,
   type SequenceState,
   groupedShortcuts,
+  isActivationTarget,
   isTypingTarget,
   matchKey,
 } from "./keyboard";
@@ -118,6 +119,25 @@ describe("isTypingTarget", () => {
     expect(isTypingTarget({ tagName: "BODY" })).toBe(false);
     expect(isTypingTarget({ tagName: "BUTTON" })).toBe(false);
     expect(isTypingTarget({})).toBe(false);
+  });
+});
+
+describe("isActivationTarget", () => {
+  it("leaves Enter to focused links, buttons and summaries", () => {
+    expect(isActivationTarget({ tagName: "A" })).toBe(true);
+    expect(isActivationTarget({ tagName: "BUTTON" })).toBe(true);
+    expect(isActivationTarget({ tagName: "SUMMARY" })).toBe(true);
+  });
+
+  it("leaves Enter to elements with an interactive role", () => {
+    expect(isActivationTarget({ tagName: "DIV", role: "button" })).toBe(true);
+    expect(isActivationTarget({ tagName: "SPAN", role: "link" })).toBe(true);
+  });
+
+  it("lets Enter open the selected row from the page body or a plain element", () => {
+    expect(isActivationTarget({ tagName: "BODY", role: null })).toBe(false);
+    expect(isActivationTarget({ tagName: "DIV" })).toBe(false);
+    expect(isActivationTarget({ tagName: "TR", role: "row" })).toBe(false);
   });
 });
 

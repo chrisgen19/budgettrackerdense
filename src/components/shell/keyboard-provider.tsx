@@ -6,6 +6,7 @@ import {
   SEARCH_FIELD_ATTRIBUTE,
   type SequenceState,
   type ShortcutCommand,
+  isActivationTarget,
   isTypingTarget,
   matchKey,
 } from "@/lib/keyboard";
@@ -60,7 +61,13 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // A control that already handled the key keeps it.
+      if (event.defaultPrevented) return;
       if (event.metaKey || event.ctrlKey || event.altKey) return;
+      // Enter on a focused link or button is that control's own activation.
+      if (event.key === "Enter" && event.target instanceof HTMLElement && isActivationTarget(event.target)) {
+        return;
+      }
       if (event.target instanceof HTMLElement && isTypingTarget(event.target)) {
         // Escape still works in a field, to give focus and filters back.
         if (event.key !== "Escape") return;
