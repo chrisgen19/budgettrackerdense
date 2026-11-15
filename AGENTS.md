@@ -49,7 +49,7 @@ Start every session by reading `docs/plans/00-overview.md`, then the plan for th
 - `pnpm lint`, `pnpm type-check`, `pnpm test`
 - `pnpm sync:schema`: copy `../budgettracker/prisma/schema.prisma`, then `prisma generate`
 - `pnpm sync:vendor`: regenerate `src/vendor/bt/` from `../budgettracker/src`
-- `pnpm check:drift`: fail if schema or vendored files differ from a fresh sync
+- `pnpm check:drift`: fail if schema or vendored files differ from a fresh sync of the commit in `prisma/.source-sha`
 
 ## Layout (target)
 ```

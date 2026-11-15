@@ -78,3 +78,25 @@ export function pinnedSource(sha = pinnedSha()): SourceReader {
     },
   };
 }
+
+export interface HeadComparison {
+  /** The checkout's HEAD, short. */
+  head: string;
+  /** Whether HEAD is the pinned commit itself. */
+  matches: boolean;
+}
+
+/**
+ * The checkout's HEAD against the pinned commit, compared as full shas so a
+ * short sha of a different length still matches. `null` when either cannot be
+ * resolved (not a git repo, or the commit was never fetched).
+ */
+export function compareHeadToPinned(sha = pinnedSha()): HeadComparison | null {
+  try {
+    const head = git(["rev-parse", "HEAD"]).trim();
+    const pinned = git(["rev-parse", "--verify", `${sha}^{commit}`]).trim();
+    return { head: git(["rev-parse", "--short", "HEAD"]).trim(), matches: head === pinned };
+  } catch {
+    return null;
+  }
+}

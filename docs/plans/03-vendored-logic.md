@@ -57,17 +57,17 @@ Watch-outs found in the audit:
 8. Script: `"sync:vendor": "tsx scripts/sync-vendor.ts"`.
 
 ## `scripts/check-drift.ts`
-- Re-runs the schema and vendor transforms **in memory** against the current budgettracker
-  checkout and compares to what is on disk. Exit 1 listing each differing file.
+- Re-runs the schema and vendor transforms **in memory** against budgettracker at the commit in
+  `prisma/.source-sha`, read straight from git objects (`pinnedSource()` in
+  `scripts/lib/source.ts`), and compares to what is on disk. Exit 1 listing each differing file.
+  It passes whichever branch the checkout has open, as long as that commit has been fetched.
 - Also fails if any file under `src/vendor/bt/` lacks the GENERATED header (hand-added file).
-- Script: `"check:drift": "tsx scripts/check-drift.ts"`.
-- In CI (plan 08) budgettracker is checked out next to this repo at `main`, so drift means
-  "budgettracker main moved; re-sync and review the diff".
-- The drift test in `pnpm test` (`scripts/vendored-logic.test.ts`) checks a narrower thing: that
-  the tree matches the commit it was synced from. It reads budgettracker at the sha in
-  `prisma/.source-sha` straight from git objects (`pinnedSource()` in `scripts/lib/source.ts`),
-  so it passes whichever branch the checkout has open, as long as that commit has been fetched.
-  `pnpm check:drift` and the sync scripts still read the checkout as it is on disk.
+- When the checkout's HEAD is a different commit it prints a note, without failing. Taking
+  budgettracker's changes is a deliberate `pnpm sync:schema && pnpm sync:vendor` and a reviewed
+  diff, not something a check should force.
+- Script: `"check:drift": "tsx scripts/check-drift.ts"`. The drift test in `pnpm test`
+  (`scripts/vendored-logic.test.ts`) runs the same pinned comparison. The sync scripts still read
+  the checkout as it is on disk.
 
 ## ESLint and TypeScript
 - Exclude `src/vendor/bt/**` and `prisma/**` from ESLint (budgettracker lints them in its own

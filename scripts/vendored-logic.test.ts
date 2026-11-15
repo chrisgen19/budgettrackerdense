@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { findDrift, type ReadRepoFile } from "./lib/drift";
 import { REPO_ROOT } from "./lib/paths";
-import { pinnedSha, pinnedSource } from "./lib/source";
+import { compareHeadToPinned, pinnedSha, pinnedSource } from "./lib/source";
 import { VENDOR_DIR, existingVendorFiles, planVendorSync } from "./lib/vendor-sync";
 
 // The commit this tree was synced from (prisma/.source-sha), read from git, so
@@ -82,6 +82,15 @@ describe("the vendored copy is generated output", () => {
 describe("check:drift", () => {
   it("passes on the tree as synced", () => {
     expect(drift().problems).toEqual([]);
+  });
+
+  it("compares the checkout's HEAD with the pinned commit, whatever branch is open", () => {
+    // HEAD depends on the machine, so only the shape is fixed here.
+    expect(compareHeadToPinned()).toEqual({ head: expect.stringMatching(/^[0-9a-f]{7,}$/), matches: expect.any(Boolean) });
+  });
+
+  it("gives no HEAD comparison when the pinned commit cannot be resolved", () => {
+    expect(compareHeadToPinned("0000000")).toBeNull();
   });
 
   it("says how to recover when the pinned commit is not in the checkout", () => {
