@@ -1,27 +1,150 @@
 @import "tailwindcss";
 
 /*
- * Placeholder tokens only. The real token set (light + dark, money/mono
- * scales, panel chrome) arrives in phase 05, docs/plans/05-design-system.md.
+ * Tokens lifted from design-reference/04-data-dense.html (the `.m` and
+ * `.m[data-theme="dark"]` rules). Values are copied, not re-derived: the
+ * contrast ratios in docs/plans/05-design-system.md were measured against these
+ * exact hexes and src/lib/contrast.test.ts recomputes them.
+ *
+ * Theme switching is a `.dark` class on <html>, set before paint by the inline
+ * script in src/app/layout.tsx, so `t` can toggle it and the default still
+ * follows prefers-color-scheme.
  */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #f4f5f2;
+  --panel: #ffffff;
+  --rule: #d8dbd4;
+  --rule-2: #eceee9;
+  --ink: #15181c;
+  --muted: #565c64;
+  --accent: #1f5fd1;
+  --accent-soft: rgba(31, 95, 209, 0.1);
+  --accent-ink: #ffffff;
+  --income: #17704a;
+  --expense: #b0282b;
+  --warn-bg: #fcecec;
+  --track: #eceee9;
+  --grid: #eceee9;
+  --sk: #e7e9e4;
+  /* Space-separated so Tailwind's `/ <alpha>` syntax and rgb(var(--heat) / a) both work. */
+  --heat: 31 95 209;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.dark {
+  --bg: #12161b;
+  --panel: #181d23;
+  --rule: #2a313a;
+  --rule-2: #20262d;
+  --ink: #e3e7ec;
+  --muted: #929ba6;
+  --accent: #79a8ff;
+  --accent-soft: rgba(121, 168, 255, 0.14);
+  /* The mockup's dark accent is light, so text on it has to be dark: `.d-opt`/`.d-save` use #0B1220. */
+  --accent-ink: #0b1220;
+  --income: #52c892;
+  --expense: #ff8078;
+  --warn-bg: rgba(255, 128, 120, 0.1);
+  --track: #232a32;
+  --grid: #232a32;
+  --sk: #222830;
+  --heat: 121 168 255;
 }
 
+/*
+ * `inline` so utilities emit `var(--ink)` rather than a copy of the light value:
+ * the `.dark` block above then re-points every utility at once. Verified against
+ * tailwindcss 4.3.3.
+ */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-rule: var(--rule);
+  --color-rule-2: var(--rule-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+  --color-income: var(--income);
+  --color-expense: var(--expense);
+  --color-warn-bg: var(--warn-bg);
+  --color-track: var(--track);
+  --color-grid: var(--grid);
+  --color-sk: var(--sk);
+  --color-heat: rgb(var(--heat));
+
+  --font-sans: var(--font-plex-sans-condensed), system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+
+  /* The mockup's whole scale. Nothing larger: density is the point. */
+  --text-label: 11px;
+  --text-meta: 11.5px;
+  --text-head: 12px;
+  --text-figure: 12.5px;
+  --text-body: 13px;
+  --text-section: 15px;
+  --text-kpi: 16px;
+  --text-title: 20px;
+
+  /* 28px table rows, 26px subtotal rows (`.d-t td`, `.d-t tr.sub td`). */
+  --spacing-row: 28px;
+  --spacing-subrow: 26px;
+  --spacing-control: 32px;
+  --spacing-sidebar: 196px;
+
+  --radius-panel: 4px;
+  --radius-chip: 3px;
+
+  /*
+   * The mockup's two container-query breakpoints (`@container stage`), as media
+   * queries: here the shell is the whole page, so there is no stage to measure.
+   * `wide` reveals the columns `.hide-m` hides; `desk` is the sidebar layout.
+   */
+  --breakpoint-wide: 700px;
+  --breakpoint-desk: 900px;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  /* One visible focus ring everywhere, copied from `.m :focus-visible`. */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  /* Every figure is mono with tabular numerals (AGENTS.md money rule). */
+  .tnum {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Filter rows and the mobile tab row scroll without a visible bar. */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
