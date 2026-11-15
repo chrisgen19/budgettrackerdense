@@ -46,11 +46,12 @@ export function BurnPanel({
         </EmptyState>
       ) : (
         <>
-          <BurnChart cumulative={points} budget={budget?.planned ?? null} />
+          <BurnChart cumulative={points} budget={budget?.planned ?? null} daysInMonth={daysInMonth} />
 
           <div className="mt-2">
             <DayBars
               cumulative={points}
+              daysInMonth={daysInMonth}
               limit={budget ? budget.pace * RED_FACTOR : undefined}
             />
           </div>

@@ -10,6 +10,11 @@ export interface BurnPoint {
 export interface BurnChartProps {
   cumulative: readonly BurnPoint[];
   /**
+   * Days in the month. The x axis always spans the whole month, so a running
+   * month plots only up to today and the pace line ends at the month's last day.
+   */
+  daysInMonth: number;
+  /**
    * The month's budget, or null when no BudgetPlan exists. With null the budget
    * and pace lines are not drawn at all: a guessed line on a money chart is a
    * lie (docs/plans/00-overview.md, "no plan for this month").
@@ -19,6 +24,13 @@ export interface BurnChartProps {
   height?: number;
   strokeWidth?: number;
 }
+
+/**
+ * Where day `day` sits on an axis `width` wide that spans the whole month:
+ * day 1 at the left edge, the month's last day at the right.
+ */
+export const dayPosition = (day: number, daysInMonth: number, width: number): number =>
+  daysInMonth <= 1 ? width : ((day - 1) / (daysInMonth - 1)) * width;
 
 /**
  * Cumulative spend against budget, ported from `charts.burn` in
@@ -32,6 +44,7 @@ export interface BurnChartProps {
 export function BurnChart({
   cumulative,
   budget,
+  daysInMonth,
   width = 520,
   height = 160,
   strokeWidth = 1.75,
@@ -40,8 +53,7 @@ export function BurnChart({
 
   const last = cumulative[cumulative.length - 1] as BurnPoint;
   const max = Math.max(budget ?? 0, last.spent, 1) * 1.08;
-  const x = (day: number) =>
-    cumulative.length === 1 ? width : ((day - 1) / (cumulative.length - 1)) * width;
+  const x = (day: number) => dayPosition(day, daysInMonth, width);
   const y = (value: number) => height - (value / max) * height;
 
   const points = cumulative.map((point) => `${x(point.day).toFixed(1)},${y(point.spent).toFixed(1)}`);
@@ -63,7 +75,7 @@ export function BurnChart({
       role="img"
       aria-label={label}
     >
-      <polygon points={`0,${height} ${line} ${width},${height}`} fill="var(--accent-soft)" />
+      <polygon points={`0,${height} ${line} ${x(last.day).toFixed(1)},${height}`} fill="var(--accent-soft)" />
 
       {budget === null ? null : (
         <>

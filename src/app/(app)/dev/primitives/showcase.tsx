@@ -124,9 +124,9 @@ export function Showcase() {
       <Specimen title="Burn chart, day bars and a flush table">
         <PanelGrid columns="a">
           <Panel title="Cumulative spend vs budget" meta="dashed = budget, dotted = pace">
-            <BurnChart cumulative={CUMULATIVE} budget={MONTH.budget} />
+            <BurnChart cumulative={CUMULATIVE} budget={MONTH.budget} daysInMonth={MONTH.daysInMonth} />
             <div className="mt-2">
-              <DayBars cumulative={CUMULATIVE} limit={DAY_LIMIT} />
+              <DayBars cumulative={CUMULATIVE} daysInMonth={MONTH.daysInMonth} limit={DAY_LIMIT} />
             </div>
             <div className="flex justify-between text-label text-muted">
               <span className="tnum">01</span>
@@ -378,7 +378,7 @@ export function Showcase() {
 
       <Specimen title="No budget plan" note="no dashed budget line, and the panel says so">
         <Panel title="Cumulative spend" meta="no budget plan for this month">
-          <BurnChart cumulative={CUMULATIVE} budget={null} />
+          <BurnChart cumulative={CUMULATIVE} budget={null} daysInMonth={MONTH.daysInMonth} />
         </Panel>
       </Specimen>
 

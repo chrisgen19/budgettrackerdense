@@ -3,6 +3,8 @@ import type { BurnPoint } from "./burn-chart";
 
 export interface DayBarsProps {
   cumulative: readonly BurnPoint[];
+  /** Days in the month: one slot per day, so a running month leaves the rest blank. */
+  daysInMonth: number;
   /** Days above this are drawn in the expense colour. Usually 2x the pace. */
   limit?: number;
   width?: number;
@@ -13,11 +15,11 @@ export interface DayBarsProps {
  * Daily spend under the burn chart, ported from `charts.dayBars`. Red above the
  * limit, which the Overview sets to twice the straight-line pace.
  */
-export function DayBars({ cumulative, limit, width = 300, height = 34 }: DayBarsProps) {
+export function DayBars({ cumulative, daysInMonth, limit, width = 300, height = 34 }: DayBarsProps) {
   if (cumulative.length === 0) return null;
 
   const max = Math.max(...cumulative.map((point) => point.daySpend), 1);
-  const barWidth = width / cumulative.length;
+  const barWidth = width / Math.max(daysInMonth, 1);
   const overCount =
     limit === undefined ? 0 : cumulative.filter((point) => point.daySpend > limit).length;
 
