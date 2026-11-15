@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MonthSummary } from "@bt/lib/budget-query-types";
-import { monthsApart, sparkWindow } from "./overview";
+import { isEmptyMonth, monthsApart, monthsEndingAt } from "./monthly";
 
 /** A summary row with only the fields these helpers read. */
 const row = (monthKey: string): MonthSummary =>
@@ -18,7 +18,7 @@ describe("monthsApart", () => {
   });
 });
 
-describe("sparkWindow", () => {
+describe("monthsEndingAt", () => {
   const summary = [
     "2026-04",
     "2026-05",
@@ -31,7 +31,7 @@ describe("sparkWindow", () => {
   ].map(row);
 
   it("takes the six months ending at the month being viewed", () => {
-    expect(sparkWindow(summary, "2026-09").map((m) => m.monthKey)).toEqual([
+    expect(monthsEndingAt(summary, "2026-09", 6).map((m) => m.monthKey)).toEqual([
       "2026-04",
       "2026-05",
       "2026-06",
@@ -42,7 +42,7 @@ describe("sparkWindow", () => {
   });
 
   it("ends at the current month when that is the one being viewed", () => {
-    expect(sparkWindow(summary, "2026-11").map((m) => m.monthKey)).toEqual([
+    expect(monthsEndingAt(summary, "2026-11", 6).map((m) => m.monthKey)).toEqual([
       "2026-06",
       "2026-07",
       "2026-08",
@@ -53,7 +53,7 @@ describe("sparkWindow", () => {
   });
 
   it("returns a short window rather than padding when history runs out", () => {
-    expect(sparkWindow(summary, "2026-06").map((m) => m.monthKey)).toEqual([
+    expect(monthsEndingAt(summary, "2026-06", 6).map((m) => m.monthKey)).toEqual([
       "2026-04",
       "2026-05",
       "2026-06",
@@ -61,7 +61,7 @@ describe("sparkWindow", () => {
   });
 
   it("falls back to the newest six when the month is not in the summary", () => {
-    expect(sparkWindow(summary, "2030-01").map((m) => m.monthKey)).toEqual([
+    expect(monthsEndingAt(summary, "2030-01", 6).map((m) => m.monthKey)).toEqual([
       "2026-06",
       "2026-07",
       "2026-08",
@@ -69,5 +69,13 @@ describe("sparkWindow", () => {
       "2026-10",
       "2026-11",
     ]);
+  });
+});
+
+describe("isEmptyMonth", () => {
+  it("is true only when nothing at all was logged", () => {
+    expect(isEmptyMonth(row("2026-10"))).toBe(true);
+    expect(isEmptyMonth({ ...row("2026-09"), expenses: 81_578.35 })).toBe(false);
+    expect(isEmptyMonth({ ...row("2026-09"), income: 79_953.66 })).toBe(false);
   });
 });

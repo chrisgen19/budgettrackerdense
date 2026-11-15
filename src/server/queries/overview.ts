@@ -12,6 +12,7 @@ import {
 import { roundMoney } from "@bt/lib/money";
 import type { LabelBreakdownItem, MonthSummary } from "@bt/lib/budget-query-types";
 import { fetchCategoryByMonth } from "./category-by-month";
+import { monthsApart, monthsEndingAt } from "./monthly";
 import { type DailySpend, fetchDailySpend } from "./daily-spend";
 import { type LedgerRow, fetchLedger } from "./ledger";
 
@@ -118,29 +119,6 @@ export interface Overview {
   isEmpty: boolean;
 }
 
-/** Whole months from `from` to `to`, never negative. */
-export function monthsApart(from: string, to: string): number {
-  const [fromYear, fromMonth] = from.split("-").map(Number) as [number, number];
-  const [toYear, toMonth] = to.split("-").map(Number) as [number, number];
-
-  return Math.max((toYear - fromYear) * 12 + (toMonth - fromMonth), 0);
-}
-
-/**
- * Six months ending at `month`.
- *
- * `getMonthlySummary` only counts back from today, so viewing September in
- * November means asking for enough months to reach it and keeping the window
- * that ends there. Slicing its output rather than writing a second monthly
- * rollup keeps one definition of what a month's income and spend are.
- */
-export function sparkWindow(summary: MonthSummary[], month: string): MonthSummary[] {
-  const end = summary.findIndex((row) => row.monthKey === month);
-  if (end === -1) return summary.slice(-SPARK_MONTHS);
-
-  return summary.slice(Math.max(end + 1 - SPARK_MONTHS, 0), end + 1);
-}
-
 /** Spend per source: one ledger total per card, plus everything with no card. */
 async function fetchSources(
   prisma: PrismaClient,
@@ -235,7 +213,7 @@ export async function fetchOverview(
     fetchLedger(prisma, userId, { month, timezoneOffset, limit: RECENT_ROWS }),
   ]);
 
-  const monthly = sparkWindow(summary, month);
+  const monthly = monthsEndingAt(summary, month, SPARK_MONTHS);
   const row = monthly.find((entry) => entry.monthKey === month);
   const income = row?.income ?? 0;
   const spent = row?.expenses ?? 0;

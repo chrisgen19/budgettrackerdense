@@ -232,3 +232,48 @@ Three defects found and fixed while checking: filter groups collapsed to slivers
 horizontal scroller (`FilterGroup` needed `shrink-0`); the pagination landmark was also called
 "Pages", which is the shell's mobile tab row; and the amount inputs pushed the whole page sideways
 at 390, which the design forbids.
+
+## Reports, as built (Nov 2026)
+The third page. Overview, Ledger and Reports are done; five remain.
+
+**`fetchReports` (`src/server/queries/reports.ts`)** reads both halves over one window so the bars
+and the matrix columns line up: bt `getMonthlySummary` for the monthly totals, dense
+`fetchCategoryByMonth` for the matrix. `timezoneOffset` goes into both explicitly; defaulted to
+UTC it moves a UTC+8 user's late-evening rows into the neighbouring column.
+
+`?months=3|6|12` picks the range and `?month=` the month it ends at, both URL parameters so a view
+is linkable. `getMonthlySummary` only counts back from today, so the page asks for enough months
+to reach the end month and keeps the window ending there.
+
+**Shared helper extracted.** `monthsApart`, `monthsEndingAt` and `isEmptyMonth` moved from
+`overview.ts` to `src/server/queries/monthly.ts`; Overview now uses them too, so there is one
+definition of "the N months ending at M" and of what an empty month is.
+
+**`HeatTable` gained `summary` rows** for the plan's Total spend / Income / Net. They sit outside
+the heat scale on purpose: the shade measures one category against another, and a column total is
+a different quantity on the same axis. A month with no rows prints what the row asks for -- blank
+for the totals, "no data" for Net -- never a zero.
+
+**Not applicable here:** omitting budget figures without a plan belongs to the Overview. Reports
+shows no budget figures at all.
+
+### Figures spot-checked against budgettracker
+budgettracker's own source, same local database, owner role, `timezoneOffset: -480`.
+
+| Figure | Dense | budgettracker | Source compared |
+|---|---|---|---|
+| September column | in 79,953.66, out 81,578.35, net −1,624.69 | identical | `getMonthlySummary` |
+| Housing row, Aug and Sep | 23,049.30 and 22,000 | 23,049.30 / 22,000 | `getSpendingByCategory` per month |
+| September column total | 81,578.35 | 81,578.35 | `getSpendingByCategory` summed, and the monthly `expenses` |
+
+August 95,313.87, July 59,371.00 and June 72,680.38 match as well, and October and November come
+back as genuinely empty.
+
+### Acceptance, partly checked
+| Check | Result |
+|---|---|
+| Default range, a past month via `?month=`, and 3 / 6 / 12 | All four URLs return 200 and render |
+| Numbers match budgettracker | Three figures above, plus three more |
+| Empty months | October and November show "no data" on Net and blanks elsewhere, never 0 |
+| 1440 light | Checked: matches the mockup's report screen |
+| 390 / 768, dark, loading, error, empty-range | **Not checked** -- the session's usage limit was reached first |

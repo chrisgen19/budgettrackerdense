@@ -15,11 +15,34 @@ export interface HeatColumn {
   empty?: boolean;
 }
 
+/**
+ * A summary row under the matrix: Total spend, Income, Net.
+ *
+ * Unshaded, because the heat scale measures one category against another and a
+ * column total is a different quantity on the same axis.
+ */
+export interface HeatSummaryRow {
+  label: string;
+  /** One figure per column, in the same order as `months`. */
+  values: readonly number[];
+  /**
+   * `signed` colours each cell by its own sign, which is what Net needs;
+   * `income` fixes the whole row green; `plain` leaves it in ink.
+   */
+  tone?: "plain" | "income" | "signed";
+  /** Bold with a rule above it, the mockup's `tr.tot`. */
+  emphasis?: boolean;
+  /** What a month with no rows prints. Blank when omitted. */
+  emptyText?: string;
+}
+
 export interface HeatTableProps {
   rows: readonly HeatRow[];
   months: readonly HeatColumn[];
   /** Trailing average column, computed over the non-empty months. */
   showAverage?: boolean;
+  /** Rows under the matrix, outside the heat scale. */
+  summary?: readonly HeatSummaryRow[];
   caption?: string;
 }
 
@@ -31,7 +54,13 @@ const MAX_SHADE = 0.35;
  * `report()`; the shade is `rgb(var(--heat) / share)` so it re-tints with the
  * theme instead of carrying a baked colour.
  */
-export function HeatTable({ rows, months, showAverage = true, caption }: HeatTableProps) {
+export function HeatTable({
+  rows,
+  months,
+  showAverage = true,
+  summary,
+  caption,
+}: HeatTableProps) {
   const max = Math.max(...rows.flatMap((row) => [...row.values]), 1);
 
   return (
@@ -111,6 +140,67 @@ export function HeatTable({ rows, months, showAverage = true, caption }: HeatTab
             );
           })}
         </tbody>
+
+        {summary && summary.length > 0 ? (
+          <tfoot>
+            {summary.map((row) => (
+              <tr key={row.label}>
+                <th
+                  scope="row"
+                  className={`h-row px-2.5 text-left whitespace-nowrap ${
+                    row.emphasis
+                      ? "border-t border-rule font-semibold"
+                      : "border-b border-rule-2 font-normal"
+                  }`}
+                >
+                  {row.label}
+                </th>
+
+                {row.values.map((value, index) => {
+                  const month = months[index];
+                  return (
+                    <td
+                      key={month?.label ?? index}
+                      className={`h-row px-2.5 text-right tnum text-figure whitespace-nowrap ${
+                        row.emphasis
+                          ? "border-t border-rule font-semibold"
+                          : "border-b border-rule-2"
+                      }`}
+                    >
+                      {month?.empty ? (
+                        <span className="text-muted">{row.emptyText ?? ""}</span>
+                      ) : (
+                        <Money
+                          value={value}
+                          tone={
+                            row.tone === "income"
+                              ? "income"
+                              : row.tone === "signed"
+                                ? value < 0
+                                  ? "expense"
+                                  : "income"
+                                : "plain"
+                          }
+                          bare
+                          dp={0}
+                          sign={row.tone === "signed"}
+                        />
+                      )}
+                    </td>
+                  );
+                })}
+
+                {showAverage ? (
+                  <td
+                    className={`h-row px-2.5 ${
+                      row.emphasis ? "border-t border-rule" : "border-b border-rule-2"
+                    }`}
+                  />
+                ) : null}
+              </tr>
+            ))}
+          </tfoot>
+        ) : null}
       </table>
     </div>
   );
