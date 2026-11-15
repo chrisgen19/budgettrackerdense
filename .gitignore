@@ -1,0 +1,25 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# next
+.next/
+out/
+next-env.d.ts
+
+# env (real credentials live only here or in Coolify)
+.env
+.env.*
+!.env.example
+
+# tests and tooling
+coverage/
+playwright-report/
+test-results/
+.playwright-mcp/
+*.tsbuildinfo
+
+# Real financial data snapshot used by the design reference mockup
+design-reference/data/
+
+.DS_Store

@@ -1,0 +1,263 @@
+<!doctype html>
+<!--
+  04 Data-Dense Pro
+  Palette: ledger #F4F5F2, panel #FFFFFF, rule #D8DBD4, ink #15181C, muted #565C64, signal blue #1F5FD1, income #17704A, expense #B0282B
+           dark: #12161B / #181D23 / #2A313A / #E3E7EC / #929BA6 / #79A8FF / #52C892 / #FF8078
+  Type: IBM Plex Sans Condensed 400/500/600 for UI, IBM Plex Mono 400/500 for every figure. Scale 11 / 12 / 13 / 15 / 20.
+  Spacing: 4px base, 28px table rows, 1px rules. Radius 4. No shadows.
+  Optimizes for: seeing everything at once and driving it from the keyboard. Trade-off: steep for casual use, cramped on a phone.
+  Effort: medium-high (tables, keyboard layer, command parser; parser can reuse the Telegram shorthand rules).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data Dense Pro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared/harness.css">
+<style>
+.m {
+  --bg: #F4F5F2; --panel: #FFFFFF; --rule: #D8DBD4; --rule-2: #ECEEE9; --ink: #15181C; --muted: #565C64;
+  --accent: #1F5FD1; --accent-soft: rgba(31,95,209,.1); --income: #17704A; --expense: #B0282B; --warn-bg: #FCECEC;
+  --track: #ECEEE9; --grid: #ECEEE9; --sk: #E7E9E4; --heat: 31,95,209;
+  background: var(--bg); color: var(--ink); font: 400 13px/1.4 "IBM Plex Sans Condensed", system-ui, sans-serif;
+}
+.m[data-theme="dark"] {
+  --bg: #12161B; --panel: #181D23; --rule: #2A313A; --rule-2: #20262D; --ink: #E3E7EC; --muted: #929BA6;
+  --accent: #79A8FF; --accent-soft: rgba(121,168,255,.14); --income: #52C892; --expense: #FF8078; --warn-bg: rgba(255,128,120,.1);
+  --track: #232A32; --grid: #232A32; --sk: #222830; --heat: 121,168,255;
+}
+.m * { box-sizing: border-box; }
+.m .n, .m kbd, .m .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+.m .n { font-size: 12.5px; }
+.m button { font: inherit; color: inherit; }
+.m :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.m svg.lucide { width: 15px; height: 15px; }
+.m kbd { font-size: 10.5px; border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; color: var(--muted); background: var(--panel); }
+.pos { color: var(--income); } .neg { color: var(--expense); } .mut { color: var(--muted); }
+
+.d-shell { display: grid; grid-template-rows: auto 1fr; min-height: inherit; }
+.d-side { display: none; }
+.d-top { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--rule); background: var(--panel); position: sticky; top: 0; z-index: 5; flex-wrap: wrap; }
+.d-top .brand { font-weight: 600; letter-spacing: .02em; margin-right: 4px; }
+.d-cmd { flex: 1; min-width: 180px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--rule); border-radius: 4px; padding: 0 8px; height: 32px; color: var(--muted); background: var(--bg); text-decoration: none; }
+.d-cmd span { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.d-tabs { display: flex; gap: 0; overflow-x: auto; width: 100%; border-top: 1px solid var(--rule-2); margin: 4px -12px -8px; padding: 0 8px; scrollbar-width: none; }
+.d-tabs a { padding: 9px 10px; color: var(--muted); text-decoration: none; border-bottom: 2px solid transparent; white-space: nowrap; min-height: 40px; }
+.d-tabs a[aria-current] { color: var(--ink); border-color: var(--accent); }
+.d-main { padding: 12px; min-width: 0; }
+@container stage (min-width: 900px) {
+  .d-shell { grid-template-columns: 196px 1fr; grid-template-rows: auto 1fr; }
+  .d-side { display: flex; flex-direction: column; grid-row: 1 / 3; border-right: 1px solid var(--rule); background: var(--panel); padding: 10px 8px; gap: 1px; position: sticky; top: 44px; height: calc(100vh - 44px); align-self: start; }
+  .d-side .brand { font-weight: 600; padding: 4px 8px 12px; display: flex; justify-content: space-between; }
+  .d-side a { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 4px; color: var(--muted); text-decoration: none; }
+  .d-side a kbd { margin-left: auto; }
+  .d-side a:hover { background: var(--rule-2); color: var(--ink); }
+  .d-side a[aria-current] { background: var(--accent-soft); color: var(--ink); }
+  .d-side h6 { margin: 12px 8px 4px; font-size: 11px; color: var(--muted); font-weight: 500; }
+  .d-side .foot { margin-top: auto; font-size: 11px; color: var(--muted); padding: 8px; line-height: 1.8; }
+  .d-top .brand, .d-tabs { display: none; }
+  .d-top { top: 44px; }
+  .d-main { padding: 14px 16px; }
+}
+
+/* KPI strip */
+.d-kpis { display: grid; grid-template-columns: repeat(2, 1fr); border: 1px solid var(--rule); background: var(--panel); border-radius: 4px; }
+.d-kpi { padding: 8px 10px; border-right: 1px solid var(--rule-2); border-bottom: 1px solid var(--rule-2); display: grid; grid-template-columns: 1fr auto; gap: 0 8px; align-items: end; }
+.d-kpi dt { grid-column: 1 / -1; color: var(--muted); font-size: 11.5px; }
+.d-kpi dd { margin: 0; font-family: "IBM Plex Mono", monospace; font-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.d-kpi small { grid-column: 1 / -1; font-size: 11px; color: var(--muted); }
+@container stage (min-width: 900px) { .d-kpis { grid-template-columns: repeat(6, 1fr); } .d-kpi { border-bottom: 0; } }
+.d-flag { display: flex; gap: 8px; align-items: center; padding: 6px 10px; background: var(--warn-bg); border: 1px solid color-mix(in srgb, var(--expense) 35%, transparent); color: var(--ink); border-radius: 4px; margin-bottom: 8px; }
+.d-flag svg { color: var(--expense); }
+
+/* panels + tables */
+.d-grid { display: grid; gap: 10px; margin-top: 10px; }
+@container stage (min-width: 900px) { .d-grid.a { grid-template-columns: 1.6fr 1fr; } .d-grid.b { grid-template-columns: 1fr 1fr 1fr; } }
+.d-panel { border: 1px solid var(--rule); background: var(--panel); border-radius: 4px; min-width: 0; }
+.d-panel > header { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--rule); font-weight: 600; font-size: 12px; gap: 8px; }
+.d-panel > header span { font-weight: 400; color: var(--muted); }
+.d-panel .body { padding: 8px 10px; }
+.d-scroll { overflow-x: auto; }
+.d-t { width: 100%; border-collapse: collapse; }
+.d-t th { text-align: left; font-weight: 500; color: var(--muted); font-size: 11.5px; padding: 5px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; position: sticky; top: 0; background: var(--panel); }
+.d-t td { padding: 0 10px; height: 28px; border-bottom: 1px solid var(--rule-2); white-space: nowrap; }
+.d-t tr:hover td { background: var(--accent-soft); }
+.d-t .r { text-align: right; }
+.d-t .desc { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.d-t .sw { display: inline-block; width: 7px; height: 7px; border-radius: 1px; margin-right: 6px; }
+.d-t tr.sub td { background: var(--bg); font-weight: 500; height: 26px; color: var(--muted); }
+.d-t tr.tot td { font-weight: 600; border-top: 1px solid var(--rule); }
+.d-t .bar { display: inline-block; height: 6px; background: var(--accent); vertical-align: middle; border-radius: 1px; opacity: .8; }
+.d-tok { display: inline-block; font-size: 11px; border: 1px solid var(--rule); border-radius: 3px; padding: 0 4px; margin-right: 3px; color: var(--muted); }
+.hide-m { display: none; }
+@container stage (min-width: 700px) { .hide-m { display: table-cell; } }
+
+/* filters */
+.d-bar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+.d-search { display: flex; align-items: center; gap: 6px; border: 1px solid var(--rule); background: var(--panel); border-radius: 4px; padding: 0 8px; height: 32px; flex: 1 1 220px; }
+.d-search input { border: 0; outline: 0; flex: 1; min-width: 0; background: transparent; font: inherit; color: var(--ink); }
+.d-f { border: 1px solid var(--rule); background: var(--panel); border-radius: 4px; padding: 0 8px; height: 32px; cursor: pointer; font-size: 12px; white-space: nowrap; }
+.d-f[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.d-fgroup { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; max-width: 100%; }
+.d-fgroup b { font-weight: 500; color: var(--muted); font-size: 11px; align-self: center; margin: 0 2px 0 6px; }
+
+/* quick add */
+.d-qa { max-width: 760px; }
+.d-line { display: flex; align-items: center; gap: 8px; border: 2px solid var(--accent); background: var(--panel); border-radius: 4px; padding: 0 10px; height: 48px; }
+.d-line span { color: var(--accent); font-family: "IBM Plex Mono", monospace; }
+.d-line input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font: 500 16px "IBM Plex Mono", monospace; color: var(--ink); }
+.d-parse { display: grid; grid-template-columns: 90px 1fr; border: 1px solid var(--rule); border-top: 0; background: var(--panel); }
+.d-parse dt, .d-parse dd { margin: 0; padding: 6px 10px; border-top: 1px solid var(--rule-2); }
+.d-parse dt { color: var(--muted); }
+.d-parse dd { display: flex; flex-wrap: wrap; gap: 4px; }
+.d-opt { border: 1px solid var(--rule); background: var(--bg); border-radius: 3px; padding: 0 8px; min-height: 30px; cursor: pointer; font-size: 12px; }
+.d-opt[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+.m[data-theme="dark"] .d-opt[aria-pressed="true"] { color: #0B1220; }
+.d-amt { font: 500 24px "IBM Plex Mono", monospace; }
+.d-help { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 4px 16px; color: var(--muted); font-size: 12px; margin-top: 10px; }
+.d-save { margin-top: 10px; height: 40px; padding: 0 16px; border: 0; border-radius: 4px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+.m[data-theme="dark"] .d-save { color: #0B1220; }
+.d-toast { margin-top: 8px; color: var(--income); font-family: "IBM Plex Mono", monospace; }
+
+.d-empty { padding: 28px 12px; text-align: center; color: var(--muted); }
+.d-empty b { color: var(--ink); display: block; font-size: 14px; margin-bottom: 4px; }
+.sk { background: var(--sk); border-radius: 2px; }
+.sk.l { height: 10px; margin: 9px 0; }
+</style>
+</head>
+<body>
+<script src="data/snapshot.js"></script>
+<script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+<script src="shared/core.js"></script>
+<script>
+const { peso, esc, icon } = Mock;
+const n = (v, o) => peso(v, o).replace("₱", "");
+const NAV = [["dashboard", "Overview", "Gauge", "g o"], ["transactions", "Ledger", "Table", "g l"], ["quickadd", "New entry", "SquarePlus", "n"], ["report", "Reports", "ChartColumn", "g r"]];
+const MORE = [["Bills", "CalendarClock", "g b"], ["Cards", "CreditCard", "g c"], ["Budgets", "Target", "g u"], ["Labels", "Tag", "g t"]];
+
+const shell = (ctx, body) => `<div class="d-shell">
+  <nav class="d-side" aria-label="Main"><div class="brand"><span>LEDGER</span><span class="mut mono" style="font-size:11px">${ctx.month}</span></div>
+    ${NAV.map(([id, l, ic, k]) => `<a href="#" data-goto="${id}">${icon(ic)}${l}<kbd>${k}</kbd></a>`).join("")}
+    <h6>Accounts</h6>${MORE.map(([l, ic, k]) => `<a href="#">${icon(ic)}${l}<kbd>${k}</kbd></a>`).join("")}
+    <div class="foot"><kbd>/</kbd> search &nbsp; <kbd>?</kbd> shortcuts<br><a href="#" data-theme-toggle style="padding:0">${icon("SunMoon")} theme <kbd>t</kbd></a></div>
+  </nav>
+  <div class="d-top"><span class="brand">LEDGER</span><a href="#" class="d-cmd" data-goto="quickadd">${icon("Terminal")}<span>Type an entry: 250 food @family</span><kbd>⌘K</kbd></a>
+    <nav class="d-tabs" aria-label="Main">${NAV.map(([id, l]) => `<a href="#" data-goto="${id}">${l}</a>`).join("")}</nav></div>
+  <main class="d-main">${body}</main>
+</div>`;
+
+const kpi = (dt, dd, extra = "", small = "") => `<div class="d-kpi"><dt>${dt}</dt><dd>${dd}</dd>${extra}${small ? `<small>${small}</small>` : ""}</div>`;
+
+function dashboard(ctx) {
+  if (ctx.empty) return `<div class="d-panel"><div class="d-empty"><b>No entries for ${ctx.monthLabel}</b>Press <kbd>n</kbd> or type into the command bar to add the first one.</div></div>`;
+  const perDay = ctx.spent / ctx.lastDay, proj = perDay * ctx.daysInMonth;
+  const inc = ctx.monthly.map((m) => m.income), exp = ctx.monthly.map((m) => m.expense), net = ctx.monthly.map((m) => Math.max(m.net, 0));
+  return `${ctx.over ? `<div class="d-flag" role="status">${icon("OctagonAlert")}<span>Over budget by <b class="n">${n(-ctx.remaining)}</b> since ${ctx.monthShort} ${ctx.cum.find((c) => c.spent > ctx.budget).day}. Projected month end <b class="n">${n(proj, { dp: 0 })}</b> (${Math.round((proj / ctx.budget - 1) * 100)}% over).</span></div>` : ""}
+  <dl class="d-kpis">
+    ${kpi("Income", `<span class="pos">${n(ctx.income)}</span>`, ctx.charts.spark(inc, { w: 56, h: 18, color: "var(--income)" }))}
+    ${kpi("Spent", n(ctx.spent), ctx.charts.spark(exp, { w: 56, h: 18, color: "var(--expense)" }), `${ctx.vsPrev < 0 ? "▼" : "▲"} ${n(Math.abs(ctx.vsPrev), { dp: 0 })} vs ${ctx.prevLabel.slice(0, 3)}`)}
+    ${kpi("Budget", n(ctx.budget, { dp: 0 }), "", "5-mo avg, no plan saved")}
+    ${kpi("Remaining", `<span class="${ctx.over ? "neg" : "pos"}">${ctx.over ? "−" : ""}${n(Math.abs(ctx.remaining))}</span>`, "", `${Math.round(ctx.usedPct * 100)}% used, day ${ctx.lastDay}/${ctx.daysInMonth}`)}
+    ${kpi("Burn / day", n(perDay, { dp: 0 }), "", `pace ${n(ctx.budget / ctx.daysInMonth, { dp: 0 })}`)}
+    ${kpi("Net", `<span class="${ctx.net < 0 ? "neg" : "pos"}">${n(ctx.net, { sign: true })}</span>`, ctx.charts.spark(net, { w: 56, h: 18, color: "var(--accent)" }))}
+  </dl>
+  <div class="d-grid a">
+    <section class="d-panel"><header>Cumulative spend vs budget <span>dashed = budget, dotted = pace</span></header><div class="body">${ctx.charts.burn(ctx.cum, ctx.budget, { h: 150, stroke: 1.75 })}<div style="margin-top:8px">${ctx.charts.dayBars(ctx.cum, { h: 34, color: "var(--muted)", hi: "var(--expense)", limit: ctx.budget / ctx.daysInMonth * 2 })}</div><div class="mut" style="display:flex;justify-content:space-between;font-size:11px"><span class="mono">01</span><span>daily spend, red = over 2× pace</span><span class="mono">${ctx.daysInMonth}</span></div></div></section>
+    <section class="d-panel"><header>Recent <span><kbd>g l</kbd></span></header><div class="d-scroll"><table class="d-t"><tbody>${ctx.txns.slice(0, 9).map((t) => `<tr><td class="mono mut">${ctx.monthShort.slice(0, 3)} ${localDay(t)}</td><td class="desc">${esc(t.description)}</td><td class="r n ${t.type === "INCOME" ? "pos" : ""}">${t.type === "INCOME" ? "+" : ""}${n(t.amount)}</td></tr>`).join("")}</tbody></table></div></section>
+  </div>
+  <div class="d-grid b">
+    <section class="d-panel"><header>Categories <span>${ctx.monthShort} / ${ctx.prevLabel.slice(0, 3)} / 6 mo</span></header><div class="d-scroll"><table class="d-t"><thead><tr><th>Category</th><th class="r">${ctx.monthShort}</th><th class="r">Δ</th><th>Trend</th></tr></thead><tbody>
+      ${ctx.byCategory.map((c) => { const d = c.total - (c.spark[4] ?? 0); return `<tr><td><span class="sw" style="background:${ctx.catsByName[c.name]?.color}"></span>${esc(c.name)}</td><td class="r n">${n(c.total, { dp: 0 })}</td><td class="r n ${d > 0 ? "neg" : d < 0 ? "pos" : "mut"}">${d > 0 ? "+" : d < 0 ? "−" : ""}${n(Math.abs(d), { dp: 0 })}</td><td>${ctx.charts.spark(c.spark, { w: 56, h: 16, color: "var(--accent)", dot: false })}</td></tr>`; }).join("")}
+    </tbody></table></div></section>
+    <section class="d-panel"><header>Labels <span>${ctx.monthShort}</span></header><div class="d-scroll"><table class="d-t"><thead><tr><th>Label</th><th class="r">#</th><th class="r">Amount</th><th>Share</th></tr></thead><tbody>
+      ${ctx.byLabel.map((l) => `<tr><td><span class="sw" style="background:${l.color}"></span>${esc(l.name)}</td><td class="r n mut">${l.count}</td><td class="r n">${n(l.total, { dp: 0 })}</td><td><span class="bar" style="width:${(l.total / ctx.byLabel[0].total) * 60}px"></span></td></tr>`).join("")}
+    </tbody></table></div></section>
+    <section class="d-panel"><header>Payment sources</header><div class="d-scroll"><table class="d-t"><thead><tr><th>Source</th><th class="r">${ctx.monthShort} spend</th><th class="r">Owed</th><th class="r">Util</th></tr></thead><tbody>
+      <tr><td>Cash / debit</td><td class="r n">${n(ctx.byCard[0]?.total ?? 0, { dp: 0 })}</td><td class="r mut">n/a</td><td class="r mut">n/a</td></tr>
+      ${ctx.cards.map((c) => `<tr><td><span class="sw" style="background:${c.color}"></span>${esc(c.name)} <span class="mut">due ${c.dueDay}</span></td><td class="r n">0</td><td class="r n neg">${n(c.balance, { dp: 0 })}</td><td class="r n ${c.utilization > 80 ? "neg" : ""}">${c.utilization.toFixed(1)}%</td></tr>`).join("")}
+    </tbody></table></div></section>
+  </div>`;
+}
+const localDay = (t) => String(new Date(new Date(t.date).getTime() + 8 * 3600e3).getUTCDate()).padStart(2, "0");
+
+function transactions(ctx) {
+  const f = (k, l) => `<button type="button" class="d-f" data-filter="${esc(k)}" aria-pressed="false">${esc(l)}</button>`;
+  const head = `<div class="d-bar"><label class="d-search">${icon("Search")}<input type="search" data-search placeholder="Filter rows" aria-label="Filter rows"><kbd>/</kbd></label>
+    <div class="d-fgroup"><b>Date</b>${f("range:today", "Today")}${f("range:week", "7d")}<b>Cat</b>${ctx.usedCats.map((c) => f(`cat:${c}`, c)).join("")}<b>Label</b>${ctx.usedLabels.map((l) => f(`labels:${l}`, l)).join("")}<b>Card</b>${f("card:Cash", "Cash")}${ctx.cards.map((c) => f(`card:${c.name}`, c.name)).join("")}</div></div>`;
+  if (ctx.empty) return head + `<div class="d-panel"><div class="d-empty"><b>Ledger is empty for ${ctx.monthLabel}</b>Press <kbd>n</kbd> to add an entry.</div></div>`;
+  return head + `<section class="d-panel"><header>Ledger <span class="mono">${ctx.txns.length} of ${ctx.txnCount} rows, j/k to move, e to edit</span></header><div class="d-scroll"><table class="d-t">
+    <thead><tr><th>Time</th><th>Description</th><th>Category</th><th class="hide-m">Labels</th><th class="hide-m">Source</th><th class="r">Amount</th></tr></thead><tbody>
+    ${ctx.groups.map((g) => `<tr class="sub" data-group><td colspan="3">${g.label}</td><td class="hide-m"></td><td class="hide-m"></td><td class="r n">−${n(g.out)}</td></tr>${g.items.map((t) => `<tr ${ctx.attrs(t)}><td class="mono mut">${t.time}</td><td class="desc">${esc(t.description)}</td><td><span class="sw" style="background:${t.category.color}"></span>${esc(t.category.name)}</td><td class="hide-m">${t.labels.map((l) => `<span class="d-tok">${esc(l.name)}</span>`).join("")}</td><td class="hide-m mut">${esc(t.card?.name ?? "Cash")}</td><td class="r n ${t.type === "INCOME" ? "pos" : ""}">${t.type === "INCOME" ? "+" : "−"}${n(t.amount)}</td></tr>`).join("")}`).join("")}
+    </tbody></table></div><div data-noresults hidden class="d-empty"><b>0 rows match</b>Press <kbd>esc</kbd> to clear filters.</div></section>`;
+}
+
+function quickadd(ctx) {
+  const opt = (l, on) => `<button type="button" class="d-opt" data-chip aria-pressed="${on}">${esc(l)}</button>`;
+  return `<div class="d-qa"><section class="d-panel"><header>New entry <span><kbd>⏎</kbd> save &nbsp;<kbd>⇧⏎</kbd> save + next &nbsp;<kbd>esc</kbd> cancel</span></header><div class="body">
+    <label class="d-line"><span>›</span><input id="cmd" value="241 transpo @tnvs indrive v mall to mirea" aria-label="Entry" autocomplete="off" spellcheck="false"></label>
+    <dl class="d-parse">
+      <dt>Amount</dt><dd><span class="d-amt" data-amount data-raw="241">₱241.00</span></dd>
+      <dt>Type</dt><dd data-chips>${opt("Expense", true)}${opt("Income", false)}</dd>
+      <dt>Category</dt><dd data-chips id="p-cat">${ctx.quickCats.slice(0, 9).map((c) => opt(c.name, c.name === "Transportation")).join("")}</dd>
+      <dt>Labels</dt><dd data-chips="multi" id="p-lab">${ctx.quickLabels.map((l) => opt(l.name, l.name === "TNVS")).join("")}</dd>
+      <dt>Source</dt><dd data-chips id="p-card">${opt("Cash", true)}${ctx.cards.map((c) => opt(c.name, false)).join("")}</dd>
+      <dt>Note</dt><dd id="p-note" class="mono">indrive v mall to mirea</dd>
+      <dt>Date</dt><dd class="mono">${ctx.raw.month}-28 22:36</dd>
+    </dl>
+    <button type="button" class="d-save" data-save>${icon("CornerDownLeft")} Save entry</button><div class="d-toast" data-toast hidden role="status">✓ saved ${ctx.raw.month}-28 22:36  −241.00  Transportation  [TNVS]</div>
+    <div class="d-help"><span><kbd>250</kbd> amount</span><span><kbd>food</kbd> category prefix</span><span><kbd>@tnvs</kbd> label</span><span><kbd>#bpi</kbd> card</span><span><kbd>+5000 salary</kbd> income</span><span><kbd>y</kbd> yesterday</span></div>
+  </div></section></div>`;
+}
+
+function report(ctx) {
+  const months = ctx.monthly, cats = Object.entries(ctx.raw.categoryMonthly).sort((a, b) => b[1][5] + b[1][4] - (a[1][5] + a[1][4]));
+  const max = Math.max(...cats.flatMap(([, v]) => v));
+  return `<section class="d-panel"><header>Income / spend, 6 months <span>bars: income, spend</span></header><div class="body">${ctx.charts.bars(months, { h: 150, radius: 1, gapIn: 2 })}</div></section>
+  <section class="d-panel" style="margin-top:10px"><header>Category × month <span>cell shade = share of max</span></header><div class="d-scroll"><table class="d-t">
+    <thead><tr><th>Category</th>${months.map((m) => `<th class="r">${m.label}</th>`).join("")}<th class="r">Avg</th></tr></thead><tbody>
+    ${cats.map(([name, v]) => { const real = v.filter((x, i) => !months[i].empty); const avg = real.reduce((s, x) => s + x, 0) / (real.length || 1); return `<tr><td><span class="sw" style="background:${ctx.catsByName[name]?.color}"></span>${esc(name)}</td>${v.map((x, i) => `<td class="r n" style="background:rgba(var(--heat),${(x / max * 0.35).toFixed(3)})">${months[i].empty ? '<span class="mut">·</span>' : x ? n(x, { dp: 0 }) : '<span class="mut">0</span>'}</td>`).join("")}<td class="r n mut">${n(avg, { dp: 0 })}</td></tr>`; }).join("")}
+    <tr class="tot"><td>Total spend</td>${months.map((m) => `<td class="r n">${m.empty ? "" : n(m.expense, { dp: 0 })}</td>`).join("")}<td></td></tr>
+    <tr><td>Income</td>${months.map((m) => `<td class="r n pos">${m.empty ? "" : n(m.income, { dp: 0 })}</td>`).join("")}<td></td></tr>
+    <tr><td>Net</td>${months.map((m) => `<td class="r n ${m.net < 0 ? "neg" : "pos"}">${m.empty ? '<span class="mut">no data</span>' : n(m.net, { sign: true, dp: 0 })}</td>`).join("")}<td></td></tr>
+    </tbody></table></div></section>`;
+}
+
+window.MOCKUP = {
+  id: "04", name: "04 Data-Dense Pro", defaultTheme: "light", iconStroke: 1.75,
+  spec: {
+    summary: "A ledger, not an app. KPI strip with sparklines, a burn chart against pace, a category × month heat table, and a command line that parses '241 transpo @tnvs'.",
+    palette: [["Ledger", "#F4F5F2", "#12161B"], ["Panel", "#FFFFFF", "#181D23"], ["Rule", "#D8DBD4", "#2A313A"], ["Ink", "#15181C", "#E3E7EC"], ["Muted", "#565C64", "#929BA6"], ["Signal blue", "#1F5FD1", "#79A8FF"], ["Income", "#17704A", "#52C892"], ["Expense", "#B0282B", "#FF8078"]],
+    type: "IBM Plex Sans Condensed 400/500/600 for UI; IBM Plex Mono 400/500 for every figure, so columns align without tabular tricks. Scale 11, 12, 13, 15, 20.",
+    space: "4px base, 28px table rows, 8 to 14px panel padding. Radius 4. 1px rules, no shadows.",
+    optimizes: "Seeing the whole month at once on desktop, and logging in one line without touching the mouse. The command line mirrors the Telegram shorthand people already use.",
+    tradeoffs: "Dense on a phone, where you log most. Tables need careful horizontal scroll. Keyboard shortcuts need discoverability work (the ? sheet).",
+    effort: ["Medium to high", "Tables and the KPI strip are straightforward. The keyboard layer and command parser are the real work; the parser can reuse src/lib/telegram shorthand rules client-side. Plex fonts via next/font."],
+  },
+  render: (ctx, s) => shell(ctx, { dashboard, transactions, quickadd, report }[s](ctx)),
+  skeleton: (ctx) => { const lines = (k) => "<div class='sk l'></div>".repeat(k); const panel = (k) => `<div class="d-panel"><div class="body">${lines(k)}</div></div>`; return shell(ctx, `<div class="d-kpis">${"<div class='d-kpi'><div class='sk l' style='width:50%'></div><div class='sk l' style='height:16px;width:80%'></div></div>".repeat(6)}</div><div class="d-grid a"><div class="d-panel"><div class="body"><div class="sk" style="height:180px"></div></div></div>${panel(9)}</div><div class="d-grid b">${panel(8)}${panel(8)}${panel(8)}</div>`); },
+  after(root, ctx, screen) {
+    const input = root.querySelector("#cmd");
+    if (screen !== "quickadd" || !input) return;
+    const set = (id, match) => root.querySelectorAll(`#${id} [data-chip]`).forEach((b) => b.setAttribute("aria-pressed", String(match(b.textContent.toLowerCase()))));
+    input.addEventListener("input", () => {
+      const toks = input.value.trim().split(/\s+/);
+      const amt = toks.find((t) => /^\+?\d+(\.\d+)?$/.test(t));
+      const out = root.querySelector("[data-amount]");
+      out.textContent = amt ? peso(Number(amt.replace("+", ""))) : "₱0.00";
+      const words = toks.filter((t) => t !== amt);
+      const cat = words.find((w) => !/^[@#]/.test(w) && [...root.querySelectorAll("#p-cat [data-chip]")].some((b) => b.textContent.toLowerCase().startsWith(w.toLowerCase())));
+      if (cat) set("p-cat", (t) => t.startsWith(cat.toLowerCase()));
+      const labs = words.filter((w) => w.startsWith("@")).map((w) => w.slice(1).toLowerCase());
+      set("p-lab", (t) => labs.some((l) => l && t.replace(/\s/g, "").startsWith(l)));
+      const card = words.find((w) => w.startsWith("#"));
+      set("p-card", (t) => (card ? t.startsWith(card.slice(1).toLowerCase()) : t === "cash"));
+      root.querySelector("#p-note").textContent = words.filter((w) => w !== cat && !/^[@#]/.test(w)).join(" ");
+    });
+  },
+};
+</script>
+</body>
+</html>
