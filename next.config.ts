@@ -22,6 +22,9 @@ const contentSecurityPolicy = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  // A self-contained server for the Docker image (docs/plans/08-deploy-coolify.md):
+  // `.next/standalone/server.js` plus only the node_modules it traces.
+  output: "standalone",
   // Cache Components (and its Partial Prefetching) are deliberately off.
   // Every page here is session-gated and reads live Postgres per user, so there
   // is no meaningful static shell to prerender, and `use cache` is in-memory and
