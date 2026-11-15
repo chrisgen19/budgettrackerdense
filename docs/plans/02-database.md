@@ -46,6 +46,8 @@ ALTER DEFAULT PRIVILEGES FOR ROLE <owner role> IN SCHEMA public GRANT SELECT ON 
 
 -- the one write: quick entry through createTransactionBatch
 GRANT INSERT ON transactions, transaction_labels TO dense_app;
+-- the row lock createTransactionBatch takes on the category (see "Final grants" below)
+GRANT UPDATE (created_at) ON categories TO dense_app;
 ```
 
 ### As created locally (Nov 2026)
@@ -56,17 +58,69 @@ verbatim with those names substituted. Two facts checked against the live databa
   identity column (ids are Prisma-side cuids), so no `GRANT USAGE ON SEQUENCES` is needed.
 - `GRANT SELECT ON ALL TABLES` also covers `_prisma_migrations`. Read-only, left as is.
 
-`TransactionSource` is still `APP, MCP, TELEGRAM`: plan 07 step 0 has not shipped yet.
+`TransactionSource` gained `DENSE` with budgettracker PR #409 (`202e6de`, plan 07 step 0).
 
-**Privileges to verify, not assume.** `createTransactionBatch` takes row locks
-(`categoriesAreUsableForWrite` uses `FOR KEY SHARE` on `categories`) and an advisory lock on the
-batch key. Row-lock clauses need the `UPDATE` privilege on the table. Run the quick-entry path
-as `dense_app` against local in phase 07 and grant **only** what the error names, most likely
-`GRANT UPDATE (updated_at) ON categories TO dense_app;` (a column grant is enough for the lock and
-lets the role change nothing meaningful). Record the final grant list here once proven.
+### Final grants, proven against local (15 Nov 2026)
+| Privilege | Why |
+|---|---|
+| `CONNECT` on the database, `USAGE` on `public` | To log in and see the schema |
+| `SELECT` on every table, and on future ones through the default privileges | Every page reads; the login reads `users` |
+| `INSERT` on `transactions`, `transaction_labels` | The one write, `createTransactionBatch` |
+| `UPDATE (created_at)` on `categories` | The category row lock, below |
 
-What the role must **not** have, checked in acceptance: `UPDATE`/`DELETE` on `transactions`,
-anything on `users` beyond `SELECT`, `CREATE` on the schema.
+**Why the column grant.** Inside the keyed write, `categoriesAreUsableForWrite` reads the category
+with `SELECT ... FOR KEY SHARE` (vendored `transaction-writes.ts:195`), so a category cannot change
+type between the check and the insert. Postgres requires `UPDATE` privilege on at least one column
+for **any** row-locking read, even the weakest. Without it the write fails with `permission denied
+for table categories`, which `createTransactionBatch` catches and reports as
+`UNKNOWN_WHETHER_SAVED`: the real cause never reaches the page.
+
+The column is `created_at` because it is the only one on `categories` that means nothing. The
+earlier guess here, `updated_at`, does not exist on that table, whose columns are `id, name, type,
+icon, color, is_default, user_id, created_at`. Nothing in budgettracker reads a category's
+`created_at`, so the worst this grant allows is rewriting a timestamp no one looks at. The advisory
+lock on the batch key (`pg_advisory_xact_lock`) needs no grant.
+
+Apply it with the database named explicitly. The first attempt connected to the owner's default
+database and granted nothing on this one:
+
+```sql
+-- psql -h localhost -U myuser -d budgettracker-nextjs
+GRANT UPDATE (created_at) ON categories TO dense_app;
+-- check: dense_app=w/myuser on created_at
+SELECT attname, attacl FROM pg_attribute
+WHERE attrelid = 'public.categories'::regclass AND attacl IS NOT NULL;
+```
+
+**What the role must not have, checked as `dense_app` after the grant.** Each statement below ran
+with `WHERE false`, so a refusal is the privilege check and nothing else:
+
+| Statement | Result |
+|---|---|
+| `SELECT ... FOR KEY SHARE` on `categories` | allowed (the point of the grant) |
+| `UPDATE categories SET created_at` | allowed (the grant itself) |
+| `UPDATE categories SET name`, `INSERT INTO categories`, `DELETE FROM categories` | permission denied |
+| `UPDATE` / `DELETE` on `transactions` | permission denied |
+| `UPDATE` / `DELETE` on `transaction_labels` | permission denied |
+| `UPDATE labels`, `UPDATE users` | permission denied |
+| `CREATE` on schema `public` | not held |
+
+### Plan 07 manual checks, as `dense_app` (15 Nov 2026)
+Run through the real seam (`createQuickEntry` in `src/server/writes.ts`, via
+`tsx --conditions=react-server`) against local, with ₱1 entries described "plan 07 check".
+
+| Check | Result |
+|---|---|
+| No label named, dated Fri 13 Nov 10:30, inside Work Budget's schedule (Mon to Fri 05:00 to 17:00) | Saved with **Work Budget** applied by the schedule; stored `02:30Z`, 10:30 Manila |
+| `#bpi` on an INCOME entry | Refused, `CARD_NOT_USABLE`, nothing written |
+| The same `dense-` key saved twice | First `replayed: false`, second `replayed: true` with the same id; **1** row under the key |
+
+Before the grant, checks 1 and 3 failed with `UNKNOWN_WHETHER_SAVED` and wrote nothing, which is
+how the missing privilege was found. The two saved rows stay in the local mirror
+(`created_via = DENSE`, ₱1 each, 13 Nov); `dense_app` cannot delete them, by design.
+
+**Production needs the same column grant** before writes are turned on there (plan 08), applied
+the same way, in the Coolify Postgres terminal, as the owner.
 
 Note: `SELECT` on `users` includes the `password` hash column, which the login needs (plan 04).
 That is the main reason this role's password must be treated like the owner's.
