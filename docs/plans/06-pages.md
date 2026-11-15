@@ -554,3 +554,87 @@ for September, the same 18 the Labels table counts.
 - **`DataTable`** footer cells now take their column's hide class. They did not, so a footer under
   columns hidden on a phone would have rebuilt those columns and widened the table, the same
   class of bug as the subtotal row fixed with Bills.
+
+## New entry, as built (Nov 2026)
+The ninth and last page of v1. It is specified in `07-quick-entry-writes.md`; this records what
+was built. **Saving is off**: neither the generated client nor the local database has the `DENSE`
+`TransactionSource` value yet (`{APP,MCP,TELEGRAM}` in both), so step 0 in budgettracker comes
+first. Until then the page parses and previews, Save is disabled, and the page says why.
+
+### Parser, `src/lib/command-parser.ts`
+Pure and deterministic, 46 tests. Tokens in any order: the first number is the amount (`241`,
+`241.50`, `1,250`; a leading `+` makes it income), `@label` and `#card` match a name prefix with
+spaces and punctuation ignored, `y` / `yesterday` / `today` / a weekday / `9/27` / `2026-09-27`
+set the date, the first word of 3+ characters that starts a category name of the entry's type is
+the category, and everything else is the description in its original case.
+
+Nothing is guessed. A word that matches two categories, labels or cards leaves the field unset and
+returns both as candidates, which the page rings for the user to pick. An exact name wins over a
+longer one it prefixes. A weekday is the most recent *past* one (`mon` on a Monday is last Monday;
+today needs no token). A `M/D` later than today is last year's. Impossible days (`2026-02-31`) are
+not dates and fall through to the description. "Today" is passed in as the user's calendar day, so
+the parser has no clock or timezone of its own; a test pins 00:30 Manila as the next day in UTC+8.
+
+### Chip state, `src/lib/entry-draft.ts`
+The chips, not the text, are what gets saved. A chip choice records the parsed value it replaced
+and stands while the text still parses to that value, so fixing a typo in the description does not
+undo a picked category. Once the text says something new about that field, the text wins again.
+`readyToSave` turns the draft into the seam's input or a list of problems in words ("Pick a label
+for @w."). Labels stay **undefined** when none were named, so budgettracker's label schedules
+apply; an explicit clear sends `[]`. Labels the entry's type cannot carry are dropped after a type
+flip. 13 tests.
+
+### Write seam, `src/server/writes.ts`
+The only write path. `createQuickEntry` validates with budgettracker's `batchTransactionSchema`
+and calls the vendored `createTransactionBatch` with `createdVia: DENSE` and a `dense-` + UUID
+`clientBatchId`. The key is made when the form mounts and kept until a save succeeds, so a retry
+after a lost response replays instead of duplicating. Each `createTransactionBatch` failure is
+mapped with whether it is retryable: only `UNKNOWN_WHETHER_SAVED` and a thrown write
+(`WRITE_FAILED`) are, since retrying under the same key either replays or writes once.
+
+**The guard** checks both halves before any write: the generated enum must have `DENSE` (read at
+runtime with `denseSource()`, so the code type-checks before the sync brings the value in), and
+`SELECT 'DENSE'::"TransactionSource"` must succeed. Postgres' `22P02` means "not deployed"; any
+other database error is rethrown, so an unreachable database is a failed read, not "writes are
+off". Only a yes is cached. The server action re-runs the seam, so a hand-made request cannot write
+while the page shows Save disabled.
+
+Enter on a line that has already been saved does nothing: a second save would need a new key and
+would duplicate it.
+
+### Where this departs from plan 07
+- **`timezoneOffset` is part of `QuickEntryInput`.** `createTransactionBatch` stores
+  `new Date(date)` as given; budgettracker's form resolves the date before calling it. Without the
+  offset a bare day would land at UTC midnight (08:00 in Manila). It rides in the input rather than
+  as a fourth argument so the signature plan 09 replaces stays the same.
+- **"Quick categories first" is defined as usage.** The 9 most used categories per type over the
+  last 90 days are quick: the parser searches them first, and they are the chips shown before
+  "More…". Labels are ordered by budgettracker's `transactionCount`.
+
+### Testing note: Vitest 5.1 and throwing spies
+In `src/server/writes.test.ts`, a `vi.fn` standing in for `createTransactionBatch` that throws
+failed its test even though `createQuickEntry` caught the error and returned `WRITE_FAILED`
+(confirmed by printing the result). A minimal reproduction failed with `mockReset` in
+`beforeEach`, but the failure persisted after removing it and after throwing synchronously instead.
+The mock is therefore a plain function that records its calls in an array and delegates to a
+swappable implementation. Keep it that way unless a later Vitest fixes the behaviour.
+
+### Acceptance, checked
+| Check | Result |
+|---|---|
+| Parse on real data | `241 transpo @tnvs indrive v mall to mirea`: −241.00, Expense, Transportation, TNVS, Cash, note, today |
+| Ambiguity | `@w` rings Work Budget and With Mom and Dad Budget and blocks saving until one is picked |
+| Card on income | `+5000 salary #bpi` warns on the page; the refusal itself is left to `createTransactionBatch` |
+| Keyboard | Line focused on load; Enter does nothing while saving is off; Esc clears and refocuses |
+| Saving off | Save disabled with the reason; 0 transactions written during the session |
+| Loading | Streamed HTML cut at 3s against a 6s read carries `aria-busy="true"` and the parse-table rows |
+| Error | Forced throw: "Could not load your categories, labels and cards", digest, "Try again", no form |
+| Empty | Nothing typed shows hints in the table; "Made here" says nothing can be saved yet |
+| 390 / 768 / 1440, light and dark | No horizontal scroll, typed or empty; chips wrap on a phone |
+| `next build` | Passes |
+
+**Not exercised, because they need `DENSE`:** plan 07's manual checks against local as `dense_app`
+(a scheduled label applying to an unlabelled entry, `#bpi` on income refused, two saves under one
+key making one row), the success line and the "Made here" list with real rows, and recording the
+grants used in plan 02. `dense_app` already has INSERT on `transactions` and `transaction_labels`
+and no UPDATE or DELETE.
