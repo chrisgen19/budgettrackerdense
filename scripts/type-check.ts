@@ -8,6 +8,10 @@
  * 2. `tsconfig.json`, which keeps the flag: holds this app's own code to it.
  *    Diagnostics under `src/vendor/bt` are dropped, since budgettracker's
  *    source is written without the flag and must never be edited here.
+ *
+ * Both passes need Next's generated route types (`PageProps`, `LayoutProps`),
+ * which `next dev` and `next build` write under `.next/types`. A fresh clone,
+ * CI included, has neither, so `next typegen` runs first.
  */
 import { spawnSync } from "node:child_process";
 import { REPO_ROOT } from "./lib/paths";
@@ -35,7 +39,19 @@ function withoutVendor(lines: string[]): string[] {
   });
 }
 
+/** Generate Next's route types without a build, or exit with its output. */
+function generateRouteTypes(): void {
+  const result = spawnSync("pnpm", ["exec", "next", "typegen"], { cwd: REPO_ROOT, encoding: "utf8" });
+
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    process.stderr.write(`next typegen failed:\n${result.stdout}${result.stderr}`);
+    process.exit(1);
+  }
+}
+
 function main(): void {
+  generateRouteTypes();
   let failed = false;
 
   for (const [project, filter] of [
