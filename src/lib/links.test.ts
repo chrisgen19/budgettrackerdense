@@ -21,3 +21,11 @@ describe("derived links", () => {
     );
   });
 });
+
+describe("label links", () => {
+  it("points at budgettracker's labels page and this app's filtered ledger", async () => {
+    const { labelsUrl, labelLedgerHref } = await import("./links");
+    expect(labelsUrl("https://b.example.com")).toBe("https://b.example.com/labels");
+    expect(labelLedgerHref("abc 1", "2026-09")).toBe("/ledger?month=2026-09&label=abc+1");
+  });
+});

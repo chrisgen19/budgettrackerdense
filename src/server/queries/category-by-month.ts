@@ -116,8 +116,14 @@ export async function fetchCategoryByMonth(
   return foldMatrix(months, [...rows.values()]);
 }
 
-/** Round once per cell and derive the column totals. Shared with the label matrix. */
-export function foldMatrix(months: string[], rows: MatrixRow[]): MonthMatrix {
+/**
+ * Round once per cell and derive the column totals. Shared with the label
+ * matrix, which carries counts as well, hence the generic row.
+ */
+export function foldMatrix<Row extends MatrixRow>(
+  months: string[],
+  rows: Row[],
+): Omit<MonthMatrix, "rows"> & { rows: Row[] } {
   const monthTotals = months.map(() => 0);
 
   const rounded = rows

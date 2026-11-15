@@ -150,7 +150,9 @@ export function DataTable<Row>({
                     key={column?.key ?? index}
                     className={`h-row border-t border-rule px-2.5 font-semibold whitespace-nowrap ${
                       column ? alignClass(column as Column<unknown>) : "text-right"
-                    } ${column?.numeric ? "tnum text-figure" : ""}`}
+                    } ${column?.numeric ? "tnum text-figure" : ""} ${
+                      HIDE_CLASS[column?.hideBelow ?? "none"]
+                    }`}
                   >
                     {cell}
                   </td>

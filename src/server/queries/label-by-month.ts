@@ -28,11 +28,22 @@ export interface LabelMatrixParams extends MatrixParams {
   type?: TransactionType;
 }
 
+/** A label row with how many transactions it covers, beside how much. */
+export interface LabelMatrixRow extends MatrixRow {
+  /** Transactions per month, same order as `months`. */
+  counts: number[];
+  count: number;
+}
+
+export interface LabelMonthMatrix extends Omit<MonthMatrix, "rows"> {
+  rows: LabelMatrixRow[];
+}
+
 export async function fetchLabelByMonth(
   prisma: PrismaClient,
   userId: string,
   params: LabelMatrixParams,
-): Promise<MonthMatrix> {
+): Promise<LabelMonthMatrix> {
   const { months, startDate, endDate } = matrixSpan(params);
   const index = new Map(months.map((month, position) => [month, position]));
 
@@ -49,11 +60,20 @@ export async function fetchLabelByMonth(
     },
   });
 
-  const rows = new Map<string, MatrixRow>();
-  const rowFor = (id: string, name: string, color: string): MatrixRow => {
+  const rows = new Map<string, LabelMatrixRow>();
+  const rowFor = (id: string, name: string, color: string): LabelMatrixRow => {
     let row = rows.get(id);
     if (!row) {
-      row = { id, name, color, icon: "", amounts: months.map(() => 0), total: 0 };
+      row = {
+        id,
+        name,
+        color,
+        icon: "",
+        amounts: months.map(() => 0),
+        total: 0,
+        counts: months.map(() => 0),
+        count: 0,
+      };
       rows.set(id, row);
     }
     return row;
@@ -72,6 +92,8 @@ export async function fetchLabelByMonth(
       const row = rowFor(label.id, label.name, label.color);
       row.amounts[column] = (row.amounts[column] ?? 0) + transaction.amount;
       row.total += transaction.amount;
+      row.counts[column] = (row.counts[column] ?? 0) + 1;
+      row.count += 1;
     }
   }
 

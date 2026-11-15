@@ -86,4 +86,23 @@ describe("fetchLabelByMonth", () => {
     expect(matrix.months).toEqual(["2026-08", "2026-09"]);
     expect(matrix.rows[0]?.amounts).toEqual([0, 75]);
   });
+
+  it("counts transactions per label per month, a multi-label row once under each", async () => {
+    const rows = [
+      row("2026-08-10T04:00:00.000Z", 50, [{ id: "l1", name: "TNVS" }]),
+      row("2026-09-02T04:00:00.000Z", 300, [
+        { id: "l1", name: "TNVS" },
+        { id: "l2", name: "Shopee" },
+      ]),
+      row("2026-09-03T04:00:00.000Z", 20, [{ id: "l1", name: "TNVS" }]),
+    ];
+
+    const matrix = await fetchLabelByMonth(fakePrisma(rows), "u1", params);
+    const tnvs = matrix.rows.find((r) => r.id === "l1");
+    const shopee = matrix.rows.find((r) => r.id === "l2");
+
+    expect(tnvs?.counts).toEqual([1, 2]);
+    expect(tnvs?.count).toBe(3);
+    expect(shopee?.counts).toEqual([0, 1]);
+  });
 });

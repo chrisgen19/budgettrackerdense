@@ -27,3 +27,14 @@ export function transactionUrl(id: string, base?: string): string {
 export function billsUrl(base?: string): string {
   return `${budgetTrackerUrl(base)}/bills`;
 }
+
+/** Where labels are created, renamed and recoloured. */
+export function labelsUrl(base?: string): string {
+  return `${budgetTrackerUrl(base)}/labels`;
+}
+
+/** This app's Ledger, filtered to one label for one month. */
+export function labelLedgerHref(labelId: string, month: string): string {
+  const params = new URLSearchParams({ month, label: labelId });
+  return `/ledger?${params.toString()}`;
+}

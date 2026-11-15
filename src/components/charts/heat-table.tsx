@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Money } from "@/components/ui/money";
 import { Swatch } from "@/components/ui/data-table";
 
@@ -7,6 +8,8 @@ export interface HeatRow {
   color?: string;
   /** One figure per column, in the same order as `months`. */
   values: readonly number[];
+  /** Makes the row's name a link, e.g. to the Ledger filtered by it. */
+  href?: string;
 }
 
 export interface HeatColumn {
@@ -44,6 +47,8 @@ export interface HeatTableProps {
   /** Rows under the matrix, outside the heat scale. */
   summary?: readonly HeatSummaryRow[];
   caption?: string;
+  /** The first column's header. Defaults to "Category", what Reports shows. */
+  rowHeader?: string;
 }
 
 /** The deepest a cell shades, from `report()` in 04-data-dense.html. */
@@ -60,6 +65,7 @@ export function HeatTable({
   showAverage = true,
   summary,
   caption,
+  rowHeader = "Category",
 }: HeatTableProps) {
   const max = Math.max(...rows.flatMap((row) => [...row.values]), 1);
 
@@ -73,7 +79,7 @@ export function HeatTable({
               scope="col"
               className="sticky top-0 z-1 border-b border-rule bg-panel px-2.5 py-[5px] text-left text-meta font-medium text-muted whitespace-nowrap"
             >
-              Category
+              {rowHeader}
             </th>
             {months.map((month) => (
               <th
@@ -109,7 +115,13 @@ export function HeatTable({
                   className="h-row border-b border-rule-2 px-2.5 text-left font-normal whitespace-nowrap"
                 >
                   {row.color ? <Swatch color={row.color} /> : null}
-                  {row.name}
+                  {row.href ? (
+                    <Link href={row.href} className="text-ink hover:underline">
+                      {row.name}
+                    </Link>
+                  ) : (
+                    row.name
+                  )}
                 </th>
 
                 {row.values.map((value, index) => {

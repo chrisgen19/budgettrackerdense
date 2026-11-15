@@ -488,3 +488,69 @@ Due table was 480px wide in a 364px panel and the amounts sat off-screen. The ro
 cell per column, each with that column's hide class, and the label sits in a zero-width box that
 runs across the empty cells beside it. The Ledger's day groups use the same row and benefit too.
 `hideBelow` also gained `"desk"` (900px) beside `"wide"` (700px).
+
+## Labels, as built (Nov 2026)
+The eighth page. Every read-only page is done; only New entry remains, and it waits on the
+`DENSE` enum (plan 07).
+
+**`src/server/queries/labels.ts`** joins this app's `fetchLabelByMonth` (amounts and counts per
+label per month) with budgettracker's `getLabelList` (colours, `applicableTo`, and labels with
+nothing in the window). `timezoneOffset` goes into the matrix explicitly: defaulted to UTC, a
+UTC+8 user's late-evening rows land in the neighbouring month and so in the wrong column.
+`buildLabelRows` is the pure half and carries the tests (6).
+
+### Counting rule
+The same as budgettracker's `getLabelBreakdown`: a transaction with several labels counts **in
+full** under each. So label rows can add to more than the month, and shares to more than 100%.
+Shares are against everything spent that month, labelled or not, the same denominator
+`getLabelBreakdown` uses, and the footer is the month's real spend, not the column sum. The
+month panel says "a row with two labels counts under both" rather than normalising the figures
+into something that adds up but is not true.
+
+### What is on the page
+- `?month=` with the shared `MonthNav`; defaults to the user's current month.
+- Month table: label, count, amount, share bar, six-month sparkline, six-month total and count.
+  Labels unused this month stay listed at zero, because `getLabelList` brings them in; a label
+  deleted since its rows were tagged is kept from the matrix. Unlabeled is always last.
+- Six months: label x month `HeatTable`, a month with no rows shown as a dot, never 0, and a
+  Spent row underneath.
+- A label's name links to the Ledger filtered by it for that month (`labelLedgerHref`).
+  Unlabeled has no link: the Ledger has no "no label" filter.
+- Expenses only, as `getLabelBreakdown` defaults; every label in the local data is an expense
+  label. `applicableTo` is printed only when it is not EXPENSE.
+
+### Figures spot-checked against budgettracker
+budgettracker's own source at `a9639d0`, same local database, owner role, `timezoneOffset: -480`.
+
+| Figure | Dense | budgettracker | Source compared |
+|---|---|---|---|
+| September, Family Budget | 37 rows, 29,356.73, 36% | 37, 29,356.73, 36% | `getLabelBreakdown` |
+| August, Work Budget | 61 rows, 10,238.54, 11% | 61, 10,238.54, 11% | `getLabelBreakdown` |
+| April, total spent | 69,536 (six-month table, whole pesos) | 69,535.92 | `getLabelBreakdown` total |
+
+Also matching: every label row in September and August, counts and shares included; Unlabeled in
+September at 9 rows / 26,330.00; all six of April's label figures; the colours and
+`applicableTo` of all eight labels from `getLabelList`. The TNVS link opens the Ledger at 18 rows
+for September, the same 18 the Labels table counts.
+
+### Acceptance, checked
+| Check | Result |
+|---|---|
+| Current month, and a past month via `?month=2026-09` | Both render; November shows the empty month, September the data |
+| Numbers match budgettracker | Three figures above, plus every row of two whole months |
+| Loading | Streamed HTML cut at 3s against a 6s read carries `aria-busy="true"` and the Six months header |
+| Error | Forced throw: "Could not read your labels", digest, "Try again"; never the empty state |
+| Empty | "Nothing logged in November 2026 yet" for the current month; forced: "No labels yet", linking to budgettracker's labels page. A future month says it "has not started" (not loaded) |
+| 390 / 768 / 1440, light and dark | No horizontal page scroll, no panel title truncated. Month table: Label, #, Amount, Share at 390; adds the sparkline at 768 and the six-month total at 1440, never overflowing its panel. The six-month table scrolls inside its panel at 390, as the Reports matrix does |
+| `next build` | Passes |
+
+### Shared code changed
+- **`fetchLabelByMonth`** now returns `counts` per month and `count` per label beside the
+  amounts (`LabelMatrixRow`), with a test that a multi-label row counts once under each label.
+- **`foldMatrix`** is generic over its row type, so the label rows keep their counts through it.
+  The category matrix and Reports are unchanged.
+- **`HeatTable`** gained `rowHeader` (default "Category", what Reports shows) and an optional
+  `href` per row.
+- **`DataTable`** footer cells now take their column's hide class. They did not, so a footer under
+  columns hidden on a phone would have rebuilt those columns and widened the table, the same
+  class of bug as the subtotal row fixed with Bills.
