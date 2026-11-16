@@ -86,7 +86,11 @@ describe("check:drift", () => {
 
   it("compares the checkout's HEAD with the pinned commit, whatever branch is open", () => {
     // HEAD depends on the machine, so only the shape is fixed here.
-    expect(compareHeadToPinned()).toEqual({ head: expect.stringMatching(/^[0-9a-f]{7,}$/), matches: expect.any(Boolean) });
+    expect(compareHeadToPinned()).toEqual({
+      head: expect.stringMatching(/^[0-9a-f]{7,}$/),
+      matches: expect.any(Boolean),
+      relation: expect.stringMatching(/^(same|behind|ahead|diverged|unknown)$/),
+    });
   });
 
   it("gives no HEAD comparison when the pinned commit cannot be resolved", () => {

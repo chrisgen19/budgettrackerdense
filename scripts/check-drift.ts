@@ -8,8 +8,7 @@
  * says so, without failing: re-syncing is a deliberate step, not a fix.
  */
 import { findDrift } from "./lib/drift";
-import { SOURCE_DIR } from "./lib/paths";
-import { compareHeadToPinned, pinnedSource } from "./lib/source";
+import { compareHeadToPinned, driftNote, pinnedSource } from "./lib/source";
 
 function main(): void {
   const source = pinnedSource();
@@ -26,13 +25,10 @@ function main(): void {
 
   process.stdout.write(`No drift: ${checked} generated files match budgettracker@${sha}\n`);
 
-  const head = compareHeadToPinned(sha);
-  if (head && !head.matches) {
-    process.stdout.write(
-      `Note: ${SOURCE_DIR} is at ${head.head}, not the pinned ${sha}. ` +
-        "To take its changes, run pnpm sync:schema && pnpm sync:vendor here and review the diff.\n",
-    );
-  }
+  // Only a checkout ahead of the pin has changes to take; one behind or
+  // diverged would undo the pin, so the note says which it is.
+  const note = driftNote(compareHeadToPinned(sha), sha);
+  if (note) process.stdout.write(`${note}\n`);
 }
 
 main();
