@@ -83,8 +83,10 @@ export function pinnedSource(sha = pinnedSha()): SourceReader {
  * Where HEAD sits relative to the pinned commit. Only `ahead` has changes to
  * take: `behind` and `diverged` lack commits the pin has, so a sync from them
  * would undo what this app was synced to (a9639d0 against 202e6de lost DENSE).
+ * `unknown` is a shallow checkout where neither ancestry check passes: git
+ * treats the shallow boundary as a root, so it cannot tell ahead from diverged.
  */
-export type HeadRelation = "same" | "behind" | "ahead" | "diverged";
+export type HeadRelation = "same" | "behind" | "ahead" | "diverged" | "unknown";
 
 export interface HeadComparison {
   /** The checkout's HEAD, short. */
@@ -120,8 +122,12 @@ export function compareHeadToPinned(sha = pinnedSha(), dir: string = SOURCE_DIR)
           ? "behind"
           : isAncestor(pinned, head, dir)
             ? "ahead"
-            : "diverged";
-    return { head: git(["rev-parse", "--short", "HEAD"], dir).trim(), matches: head === pinned, relation };
+            : git(["rev-parse", "--is-shallow-repository"], dir).trim() === "true"
+              ? "unknown"
+              : "diverged";
+    // Shorten the commit already classified: a second read of HEAD could see a
+    // checkout made in between and pair its sha with this relation.
+    return { head: git(["rev-parse", "--short", head], dir).trim(), matches: head === pinned, relation };
   } catch {
     return null;
   }
@@ -139,5 +145,7 @@ export const driftNote = (comparison: HeadComparison | null, sha: string, dir: s
       return `${at}, behind the pinned ${sha}: it lacks commits this app was synced from. Do not sync from it; check out budgettracker main first.`;
     case "diverged":
       return `${at}, which has diverged from the pinned ${sha}: it lacks commits this app was synced from. Do not sync from it; check out budgettracker main first.`;
+    case "unknown":
+      return `${at}, but its history is incomplete (a shallow clone), so whether it is ahead of the pinned ${sha} cannot be told. Run git fetch --unshallow there, then check:drift again.`;
   }
 };

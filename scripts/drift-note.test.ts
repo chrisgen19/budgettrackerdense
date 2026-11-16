@@ -58,6 +58,14 @@ describe("compareHeadToPinned relation", () => {
   it("is diverged when neither contains the other", () => {
     expect(at(shas.C)?.relation).toBe("diverged");
   });
+
+  // CodeRabbit on PR 7: head is shortened from the commit the relation was
+  // computed for, not from a second read of HEAD that a checkout could change.
+  it("names the same commit it classified", () => {
+    for (const name of ["A", "B", "C", "D"] as const) {
+      expect(at(shas[name])?.head).toBe(shas[name]);
+    }
+  });
 });
 
 describe("driftNote", () => {
@@ -84,5 +92,34 @@ describe("driftNote", () => {
 
   it("says nothing when the comparison is unavailable", () => {
     expect(driftNote(null, shas.B, dir)).toBeNull();
+  });
+});
+
+// CodeRabbit on PR 7: in a shallow clone the boundary commits have no parents,
+// so with D checked out at depth 1 and the pinned B fetched separately at depth
+// 1, both ancestry checks fail although D is a child of B.
+describe("a shallow checkout", () => {
+  let shallow: string;
+
+  beforeAll(() => {
+    git("checkout", "-q", "main");
+    shallow = mkdtempSync(join(tmpdir(), "drift-note-shallow-"));
+    const inShallow = (...args: string[]) =>
+      execFileSync("git", ["-c", "protocol.file.allow=always", ...args], { cwd: shallow, encoding: "utf8" });
+    inShallow("clone", "-q", "--depth", "1", "--branch", "main", `file://${dir}`, ".");
+    inShallow("fetch", "-q", "--depth", "1", "origin", git("rev-parse", shas.B));
+  });
+
+  afterAll(() => rmSync(shallow, { recursive: true, force: true }));
+
+  it("reports unknown rather than diverged when the history cannot tell", () => {
+    expect(compareHeadToPinned(shas.B, shallow)?.relation).toBe("unknown");
+  });
+
+  it("asks for the full history instead of calling it diverged", () => {
+    const note = driftNote(compareHeadToPinned(shas.B, shallow), shas.B, shallow) ?? "";
+    expect(note).toMatch(/history is incomplete/);
+    expect(note).toMatch(/git fetch --unshallow/);
+    expect(note).not.toMatch(/diverged/);
   });
 });

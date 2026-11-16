@@ -89,7 +89,7 @@ describe("check:drift", () => {
     expect(compareHeadToPinned()).toEqual({
       head: expect.stringMatching(/^[0-9a-f]{7,}$/),
       matches: expect.any(Boolean),
-      relation: expect.stringMatching(/^(same|behind|ahead|diverged)$/),
+      relation: expect.stringMatching(/^(same|behind|ahead|diverged|unknown)$/),
     });
   });
 
