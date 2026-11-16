@@ -170,6 +170,20 @@ Set with `coolify app env create ... --build-time=false --runtime --is-literal`:
 | Logged out: `/`, `/overview`, `/ledger`, `/new`, `/reports`, `/cards`, `/budgets`, `/bills`, `/labels` | 307 to `/login` |
 | Logged out: `/login` | 200 |
 | As `dense_app`: `UPDATE transactions SET amount = amount WHERE false` | `permission denied for table transactions` |
-| Logged in: Overview numbers match budgettracker for November 2026 | not yet checked (needs Christian's login on both apps) |
+| Logged in: Overview numbers match budgettracker for November 2026 | **passed**: both Overviews and a direct query agree (below) |
 
-Still to do: the logged-in Overview comparison above.
+**Overview check, November 2026.** Christian read both Overviews logged in; a third figure came
+from a read-only query as `dense_app`, summing `amount` by `type` over the user's local month with
+`users.timezone_offset` (`-480`), the window `2026-10-31 16:00Z` to `2026-11-30 16:00Z` (end
+exclusive). That is the rule `getMonthlySummary` uses (`src/vendor/bt/lib/budget-queries.ts`).
+
+| Figure | dense Overview | budgettracker Overview | Query |
+|---|---|---|---|
+| Income | ₱36,369.02 | ₱36,369.02 | ₱36,369.02 (1 row) |
+| Spent | ₱26,295.21 | ₱26,295.21 | ₱26,295.21 (60 rows) |
+| Net | ₱10,073.81 | ₱10,073.81 | ₱10,073.81 |
+
+No row in the month has `created_via = 'DENSE'`, so the figures are budgettracker's data alone.
+
+Every acceptance check above has passed. Plan 08 is done; quick entry writes in production are the
+next thing to exercise, through the New entry page.
