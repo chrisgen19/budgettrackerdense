@@ -104,8 +104,55 @@ Checked as `dense_app`, each statement `WHERE false` in its own rolled-back tran
 The password lives only in Christian's password manager and, next, in this app's Coolify env.
 Revert while the app has written nothing: `DROP OWNED BY dense_app; DROP ROLE dense_app;`.
 
-Open: the database's public port (`is_public`, 9856) is still on. The app must use the internal
-hostname; consider turning the public port off once nothing else needs it.
+The database's public port (`is_public`, 9856) stays on: **budgettracker itself connects through
+it** (`72.61.113.145:9856/budgettracker-nextjs?sslmode=require`, read from its Coolify env with the
+credentials redacted), so turning it off would take budgettracker down. Revisit only after
+budgettracker moves to the internal hostname.
 
-Still to do, each confirmed before it runs: the Coolify application (Dockerfile build pack, this repo, `main`), its env vars, the domain, the
-first deploy, then the acceptance checks above.
+### Coolify application (2026-11-16)
+`budgettrackerdense`, uuid `z5tlxnnqajw1f3wafp0gr3lp`, in project **Budget Tracker 2026** /
+`production`, server `localhost`, destination `coolify` (the network the database is on).
+
+| Setting | Value |
+|---|---|
+| Source | GitHub App `vast-vicuna-sso40848s4wcgokgg` (the `chrisgen19` app has no installation credentials) |
+| Repo / branch | `chrisgen19/budgettrackerdense` / `main`, auto-deploy on push |
+| Build | Dockerfile, `/Dockerfile`, base directory `/`, port 3200 |
+| Domain | `https://dense.cgdev.site` (already resolves to `72.61.113.145`) |
+| Health check | `GET /api/health` on 3200, expect 200, interval 30s, timeout 5s, 3 retries, start period 40s |
+| Previews | off: a preview would run with the production `dense_app` credentials |
+
+Gotchas met on the way, for next time:
+- **Coolify CLI 1.8.0 `--environment-uuid` bug.** `coolify app create github --environment-uuid`
+  sends the field as `environment`, and the API answers `422 {"environment":["This field is not
+  allowed."]}`. Use `--environment-name production` instead (`--debug` shows the request body).
+- **The CLI leaves Coolify's health check defaults** (interval 5s, 10 retries, start period 5s) and
+  an empty `dockerfile_location`, and `app update` has no flags for them. Set them with
+  `PATCH /api/v1/applications/<uuid>`, using the CLI context's token.
+- The MCP token here is read-only; creates and updates go through the CLI or the API.
+
+### Environment (2026-11-16)
+Set with `coolify app env create ... --build-time=false --runtime --is-literal`:
+
+| Key | Value |
+|---|---|
+| `DATABASE_URL` | `postgresql://dense_app:...@o0cc0cgwcc0wccc04k880gg4:5432/budgettracker-nextjs?sslmode=require` (internal host) |
+| `SESSION_SECRET` | 32 random bytes, base64 |
+| `ALLOWED_EMAILS` | Christian's login email (one matching `users` row, checked as `dense_app`) |
+| `BUDGETTRACKER_URL` | `https://budget.cgdev.site` |
+
+- **Runtime only.** The Dockerfile builds with a placeholder URL, and build-time variables end up
+  in the image. `NODE_ENV` is not set: the Dockerfile's runtime stage sets `production`, and at
+  build time it would make `pnpm install` skip dev dependencies.
+- **Coolify makes a preview copy of every variable** (`is_preview: true`) even with previews off.
+  The four copies, including the `dense_app` URL, were deleted with `coolify app env delete`.
+  Untick "preview" when adding a variable in the UI.
+- If the internal host does not work, `/api/health` stays 200 but `?db=1` returns 503; fall back to
+  the public host budgettracker uses.
+
+### Acceptance so far
+- As `dense_app` in production, `UPDATE transactions SET amount = amount WHERE false` fails with
+  `permission denied for table transactions`.
+
+Still to do, each confirmed before it runs: the first deploy (started 2026-11-16, deployment
+`ltceyfjij10rmypkvgywvshj`), then the remaining acceptance checks above.
