@@ -63,6 +63,49 @@ Repo prep landed (`docs/superpowers/specs/2026-11-16-deploy-prep-design.md`):
 - `pnpm type-check` runs `next typegen` first, so it works on a fresh clone.
 - budgettracker's DENSE release (`202e6de`) is in production since 2026-11-15.
 
-Still to do, each confirmed before it runs: the production `dense_app` role and grants, the
-Coolify application (Dockerfile build pack, this repo, `main`), its env vars, the domain, the
+### Production `dense_app` role (2026-11-16)
+Created on Coolify Postgres `o0cc0cgwcc0wccc04k880gg4` (`postgres:17-alpine`, 17.8), database
+**`budgettracker-nextjs`**. The instance also has a `budget` database: it is not budgettracker's
+(2 tables, no `transactions`). Run as `postgres` from local `psql` over the public port with
+`sslmode=require`, the superuser password read from `coolify database get -s` into an env var and
+never printed. The Coolify CLI (1.8.0) and MCP cannot run SQL themselves.
+
+Checked first, read-only: no `dense_app` yet; all 30 `public` tables owned by `postgres`; 0
+sequences; `TransactionSource` is `{APP,MCP,TELEGRAM,DENSE}` (latest migration
+`20261115144000_add_dense_transaction_source`); `categories` has `created_at`; `PUBLIC` holds only
+`USAGE` on schema `public`.
+
+Applied in one transaction, the plan 02 grants with names filled in:
+
+```sql
+BEGIN;
+CREATE ROLE dense_app LOGIN PASSWORD :'pw';   -- openssl rand -hex 32, passed as a psql variable
+GRANT CONNECT ON DATABASE "budgettracker-nextjs" TO dense_app;
+GRANT USAGE ON SCHEMA public TO dense_app;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO dense_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT SELECT ON TABLES TO dense_app;
+GRANT INSERT ON transactions, transaction_labels TO dense_app;
+GRANT UPDATE (created_at) ON categories TO dense_app;
+COMMIT;
+```
+
+Checked as `dense_app`, each statement `WHERE false` in its own rolled-back transaction:
+
+| Statement | Result |
+|---|---|
+| `SELECT ... FOR KEY SHARE` on `categories`, `UPDATE categories SET created_at` | allowed |
+| `INSERT` into `transactions`, `transaction_labels` | allowed |
+| `SELECT` on `users`, `transactions` | allowed |
+| `UPDATE categories SET name`, `INSERT` / `DELETE` on `categories` | permission denied |
+| `UPDATE` / `DELETE` on `transactions`, `transaction_labels` | permission denied |
+| `UPDATE labels`, `UPDATE users` | permission denied |
+| `CREATE TABLE` in `public`, `CREATE` on the database | denied / not held |
+
+The password lives only in Christian's password manager and, next, in this app's Coolify env.
+Revert while the app has written nothing: `DROP OWNED BY dense_app; DROP ROLE dense_app;`.
+
+Open: the database's public port (`is_public`, 9856) is still on. The app must use the internal
+hostname; consider turning the public port off once nothing else needs it.
+
+Still to do, each confirmed before it runs: the Coolify application (Dockerfile build pack, this repo, `main`), its env vars, the domain, the
 first deploy, then the acceptance checks above.
