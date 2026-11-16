@@ -119,7 +119,7 @@ budgettracker moves to the internal hostname.
 | Repo / branch | `chrisgen19/budgettrackerdense` / `main`, auto-deploy on push |
 | Build | Dockerfile, `/Dockerfile`, base directory `/`, port 3200 |
 | Domain | `https://dense.cgdev.site` (already resolves to `72.61.113.145`) |
-| Health check | `GET /api/health` on 3200, expect 200, interval 30s, timeout 5s, 3 retries, start period 40s |
+| Health check | `GET http://127.0.0.1:3200/api/health` (host **`127.0.0.1`**, not `localhost`), expect 200, interval 30s, timeout 5s, 3 retries, start period 40s |
 | Previews | off: a preview would run with the production `dense_app` credentials |
 
 Gotchas met on the way, for next time:
@@ -150,9 +150,26 @@ Set with `coolify app env create ... --build-time=false --runtime --is-literal`:
 - If the internal host does not work, `/api/health` stays 200 but `?db=1` returns 503; fall back to
   the public host budgettracker uses.
 
-### Acceptance so far
-- As `dense_app` in production, `UPDATE transactions SET amount = amount WHERE false` fails with
-  `permission denied for table transactions`.
+### First deploy (2026-11-16)
+- **`ltceyfjij10rmypkvgywvshj` failed the health check.** The image built and Next reported
+  `Ready` on `http://0.0.0.0:3200`, but all 3 attempts got `wget: can't connect to remote host:
+  Connection refused` against `http://localhost:3200/api/health` (`curl: not found` is noise:
+  Coolify falls back to busybox `wget`). On Alpine (musl) `localhost` resolves to `::1` first, and
+  `HOSTNAME=0.0.0.0` listens on IPv4 only. Coolify rolled back to nothing, so nothing served.
+  budgettracker's `localhost` check works because its nixpacks image is not Alpine.
+- **Fix: `health_check_host` = `127.0.0.1`** on the Coolify app (`PATCH
+  /api/v1/applications/<uuid>`; the CLI has no flag). No code change. The alternative, if a check
+  ever has to use `localhost`, is `HOSTNAME=::` in the Dockerfile so Next listens dual-stack.
+- **`edbq0mipzmta2ewdg56dbmll` passed** the health check on attempt 1.
 
-Still to do, each confirmed before it runs: the first deploy (started 2026-11-16, deployment
-`ltceyfjij10rmypkvgywvshj`), then the remaining acceptance checks above.
+### Acceptance (2026-11-16)
+| Check | Result |
+|---|---|
+| `GET https://dense.cgdev.site/api/health` | 200 `{"ok":true}` |
+| `GET /api/health?db=1` | 200 `{"ok":true}`: `dense_app` reaches the database over the internal host |
+| Logged out: `/`, `/overview`, `/ledger`, `/new`, `/reports`, `/cards`, `/budgets`, `/bills`, `/labels` | 307 to `/login` |
+| Logged out: `/login` | 200 |
+| As `dense_app`: `UPDATE transactions SET amount = amount WHERE false` | `permission denied for table transactions` |
+| Logged in: Overview numbers match budgettracker for November 2026 | not yet checked (needs Christian's login on both apps) |
+
+Still to do: the logged-in Overview comparison above.
