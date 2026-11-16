@@ -1,0 +1,12 @@
+# Never send secrets or local build state into the image build.
+.git
+.github
+node_modules
+.next
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+.playwright-mcp
+design-reference
+docs
