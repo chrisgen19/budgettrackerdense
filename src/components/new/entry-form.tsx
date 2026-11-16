@@ -19,7 +19,8 @@ const newKey = () => `dense-${crypto.randomUUID()}`;
 
 type Status =
   | { kind: "idle" }
-  | { kind: "saved"; entry: RecentEntry; replayed: boolean }
+  /** `line` is the command text the save left in the box, so an edit after it reads as earlier. */
+  | { kind: "saved"; entry: RecentEntry; replayed: boolean; line: string }
   | { kind: "failed"; message: string };
 
 /**
@@ -81,7 +82,7 @@ export function EntryForm({ context }: { context: EntryContext }) {
         setStatus({ kind: "failed", message: FAILURE_TEXT[result.reason] });
         return;
       }
-      setStatus({ kind: "saved", entry: result.entry, replayed: result.replayed });
+      setStatus({ kind: "saved", entry: result.entry, replayed: result.replayed, line: thenClear ? "" : text });
       setRecent((list) => [result.entry, ...list.filter((row) => row.id !== result.entry.id)].slice(0, 10));
       setPendingAttempt(null);
       if (thenClear) clear();
@@ -125,7 +126,10 @@ export function EntryForm({ context }: { context: EntryContext }) {
         <div role="status" aria-live="polite" className="mt-2 min-h-5 text-label">
           {status.kind === "saved" ? (
             <span className="flex flex-wrap items-baseline gap-x-2">
-              <span className="font-mono text-income">✓ {status.replayed ? "already saved" : "saved"}</span>
+              <span className="font-mono text-income">
+                ✓ {status.replayed ? "already saved" : "saved"}
+                {status.line === text ? "" : " earlier"}
+              </span>
               <EntryLine entry={status.entry} timezoneOffset={context.timezoneOffset} />
             </span>
           ) : status.kind === "failed" ? (
