@@ -41,9 +41,22 @@ Session cookie `Secure` in production.
 ## CI (GitHub Actions)
 On push and PR: checkout this repo and budgettracker (`main`) side by side, `pnpm install`,
 `pnpm lint`, `pnpm type-check`, `pnpm test`, `pnpm check:drift`. Drift is checked against the
-commit in `prisma/.source-sha`, so failing means a generated file was edited here. When
-budgettracker `main` has moved past that commit, `check:drift` prints a note instead: re-sync
-locally, read the diff, adjust, commit.
+commit in `prisma/.source-sha`, so failing means a generated file was edited here. When the
+budgettracker checkout's HEAD is not that commit, `check:drift` prints a note instead, and since
+PR 7 the note says which way it points (`compareHeadToPinned` in `scripts/lib/source.ts`):
+
+| HEAD vs the pin | Note |
+|---|---|
+| ahead | re-sync locally (`pnpm sync:schema && pnpm sync:vendor`), read the diff, adjust, commit |
+| behind | do not sync: it lacks commits this app was synced from; check out budgettracker `main` |
+| diverged | the same as behind |
+| unknown | a shallow clone where neither ancestry check passes; run `git fetch --unshallow` there |
+
+Why: the old note said only "not the pinned commit" and always offered the sync. On 16 Nov the
+checkout was on `design/redesign-2026` at `a9639d0`, an ancestor of the pinned `202e6de`, and a sync
+from it would have removed `DENSE` from the schema, turned quick entry off and made the client throw
+on the production DENSE row. CodeRabbit then caught two more cases, both fixed in PR 7: a shallow
+clone read as diverged, and the short sha came from a second read of HEAD.
 
 ## Acceptance
 - Logged out: every page redirects to `/login`; `/api/health` returns 200.
@@ -185,5 +198,13 @@ exclusive). That is the rule `getMonthlySummary` uses (`src/vendor/bt/lib/budget
 
 No row in the month has `created_via = 'DENSE'`, so the figures are budgettracker's data alone.
 
-Every acceptance check above has passed. Plan 08 is done; quick entry writes in production are the
-next thing to exercise, through the New entry page.
+Every acceptance check above has passed. Plan 08 is done.
+
+### After the deploy (2026-11-16)
+- **First production write:** row `cmwimac300001ny014dbo401e`, ₱1 Other Expense, `created_via =
+  DENSE`, Work Budget applied by its schedule. Details and the empty-note investigation are in plan
+  07 under "Production".
+- **PR 6** (`17dcf05`): the New entry confirmation reads `✓ saved earlier` once the line is edited
+  after a save. Deployed as `qrvkagdik6bosgcvq9pjpnx9`, healthy.
+- **PR 7** (`a009c11`): the drift note says behind, ahead, diverged or unknown (CI section above).
+  Deployed as `gxq8bga2nezxpfbey8givad2`, healthy; it changes only `scripts/`, not the app.
