@@ -42,9 +42,9 @@ export function pinnedSha(): string {
   return readFileSync(join(REPO_ROOT, "prisma", ".source-sha"), "utf8").trim();
 }
 
-const git = (args: string[]): string =>
+const git = (args: string[], cwd: string = SOURCE_DIR): string =>
   execFileSync("git", args, {
-    cwd: SOURCE_DIR,
+    cwd,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
     // Captured rather than inherited: a missing commit is reported by the caller.
@@ -79,24 +79,65 @@ export function pinnedSource(sha = pinnedSha()): SourceReader {
   };
 }
 
+/**
+ * Where HEAD sits relative to the pinned commit. Only `ahead` has changes to
+ * take: `behind` and `diverged` lack commits the pin has, so a sync from them
+ * would undo what this app was synced to (a9639d0 against 202e6de lost DENSE).
+ */
+export type HeadRelation = "same" | "behind" | "ahead" | "diverged";
+
 export interface HeadComparison {
   /** The checkout's HEAD, short. */
   head: string;
   /** Whether HEAD is the pinned commit itself. */
   matches: boolean;
+  relation: HeadRelation;
 }
+
+/** Whether `ancestor` is reachable from `descendant`. `git merge-base --is-ancestor` answers by exit code. */
+const isAncestor = (ancestor: string, descendant: string, cwd: string): boolean => {
+  try {
+    git(["merge-base", "--is-ancestor", ancestor, descendant], cwd);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 /**
  * The checkout's HEAD against the pinned commit, compared as full shas so a
  * short sha of a different length still matches. `null` when either cannot be
  * resolved (not a git repo, or the commit was never fetched).
  */
-export function compareHeadToPinned(sha = pinnedSha()): HeadComparison | null {
+export function compareHeadToPinned(sha = pinnedSha(), dir: string = SOURCE_DIR): HeadComparison | null {
   try {
-    const head = git(["rev-parse", "HEAD"]).trim();
-    const pinned = git(["rev-parse", "--verify", `${sha}^{commit}`]).trim();
-    return { head: git(["rev-parse", "--short", "HEAD"]).trim(), matches: head === pinned };
+    const head = git(["rev-parse", "HEAD"], dir).trim();
+    const pinned = git(["rev-parse", "--verify", `${sha}^{commit}`], dir).trim();
+    const relation: HeadRelation =
+      head === pinned
+        ? "same"
+        : isAncestor(head, pinned, dir)
+          ? "behind"
+          : isAncestor(pinned, head, dir)
+            ? "ahead"
+            : "diverged";
+    return { head: git(["rev-parse", "--short", "HEAD"], dir).trim(), matches: head === pinned, relation };
   } catch {
     return null;
   }
 }
+
+/** The line `check:drift` prints about the checkout's HEAD, or `null` when there is nothing to say. */
+export const driftNote = (comparison: HeadComparison | null, sha: string, dir: string = SOURCE_DIR): string | null => {
+  if (!comparison || comparison.relation === "same") return null;
+  const at = `Note: ${dir} is at ${comparison.head}`;
+
+  switch (comparison.relation) {
+    case "ahead":
+      return `${at}, ahead of the pinned ${sha}. To take its changes, run pnpm sync:schema && pnpm sync:vendor here and review the diff.`;
+    case "behind":
+      return `${at}, behind the pinned ${sha}: it lacks commits this app was synced from. Do not sync from it; check out budgettracker main first.`;
+    case "diverged":
+      return `${at}, which has diverged from the pinned ${sha}: it lacks commits this app was synced from. Do not sync from it; check out budgettracker main first.`;
+  }
+};
