@@ -94,6 +94,8 @@ imports before adding it to the vendor entry list.
 - The confirmation stays until the next save, so once the line is edited after a save it reads
   `✓ saved earlier` (`✓ already saved earlier` for a replay). Shift+Enter's cleared line keeps
   `✓ saved` until the next entry is typed. See "Production" below for why (PR 6).
+- A note is required: a line with none shows `Add a note.` and Enter does nothing. See "Notes are
+  required" below.
 - Mobile: the same, chips wrap; no custom keypad (this is the desktop app).
 
 ## Tests
@@ -137,6 +139,31 @@ typed after: the request sent `"description":""`, and the old `✓ saved` line s
 beside the updated Note row, reading as the save of the full line. PR 6 relabels it
 `✓ saved earlier` once the text differs from the line saved
 (`src/components/new/entry-form.test.tsx`, the first component test). Saving on the first valid
-Enter is unchanged.
+Enter was left unchanged then, which is what "Notes are required" below closes.
 
 The local reproduction left three ₱1 `DENSE` rows in the local mirror (16 Nov, 10:07 to 10:09).
+
+## Notes are required (2026-11-19)
+PR 6 made the stale confirmation honest but left the cause in place: `1 other` is a complete line,
+so Enter there still saved a row with no note. `readyToSave` now refuses a line whose note is empty
+or blank, with `Add a note.` in the save bar, so the first Enter at `1 other` does nothing and the
+note typed after it is what gets saved.
+
+Why a note is required here when budgettracker's own `transactionSchema` defaults it to `""`:
+
+- **Every other way in almost always has one.** On the local mirror (19 Nov): APP 1 empty of 935,
+  Telegram 0 of 39, MCP 0 of 49. Both empty `DENSE` rows came from the bug above, not from a choice.
+- **The closest analogue already requires it.** budgettracker's quick-log tiles, its other one-line
+  entry, reject an empty description (`src/lib/validations.ts`, "Description is required").
+- **The rule stays in this app.** Requiring it in the shared `createTransactionBatch` would change
+  the contract for budgettracker's web form, batch route and MCP, which all rely on the `""`
+  default. So the check is in `readyToSave` and nothing vendored changed: `check:drift` is unaffected.
+- **The cost is one word.** A line like `241 transportation` uses its only word as the category and
+  now needs a note, which is small for a review tool where the note is what you read back later.
+
+Tests: `src/lib/entry-draft.test.ts` (a line with no note, and one with only trailing spaces) and
+`src/components/new/entry-form.test.tsx` (Enter at `1 other` calls no save and shows the problem,
+then `1 other taxi` saves once with its note). All three fail with the check removed.
+
+Production row `cmwimac300001ny014dbo401e` still has an empty note; add one or delete it in
+budgettracker, since `dense_app` can do neither.
