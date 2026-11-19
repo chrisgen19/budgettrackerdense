@@ -118,6 +118,11 @@ export const readyToSave = (
   } else if (category.type !== draft.type) {
     problems.push(`${category.name} is not an ${draft.type.toLowerCase()} category.`);
   }
+  // `1 other` is already a complete line, so Enter there saved it before the
+  // note was typed and the note never reached the row (production row
+  // cmwimac300001ny014dbo401e). Requiring a note closes that. Every other way
+  // into budgettracker almost always carries one (plan 07, "Notes are required").
+  if (draft.description.trim() === "") problems.push("Add a note.");
 
   const ambiguous = parsed.labels.filter((match) => match.ids.length > 1);
   if (ambiguous.length > 0 && !draft.labelsChosen) {
