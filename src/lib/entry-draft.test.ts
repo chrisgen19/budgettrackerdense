@@ -86,80 +86,85 @@ describe("readyToSave", () => {
     });
   });
 
+  it("asks for a note when the line has none, even if blank space follows", () => {
+    expect(ready("241 transpo")).toEqual({ ok: false, problems: ["Add a note."] });
+    expect(ready("241 transpo   ")).toEqual({ ok: false, problems: ["Add a note."] });
+  });
+
   it("asks for an amount and a category", () => {
     expect(ready("indrive")).toEqual({ ok: false, problems: ["Type an amount.", "Pick a category."] });
   });
 
   it("asks to pick between two matching categories", () => {
-    expect(ready("+900 sal")).toEqual({ ok: false, problems: ["Pick one of the matching categories."] });
+    expect(ready("+900 sal payroll")).toEqual({ ok: false, problems: ["Pick one of the matching categories."] });
   });
 
   it("refuses a category of the other type after the type chip is flipped", () => {
-    const overrides = choose({}, "type", "INCOME", parse("241 transpo"));
-    expect(ready("241 transpo", overrides)).toEqual({
+    const overrides = choose({}, "type", "INCOME", parse("241 transpo grab"));
+    expect(ready("241 transpo grab", overrides)).toEqual({
       ok: false,
       problems: ["Transportation is not an income category."],
     });
   });
 
   it("asks to settle an ambiguous label, and accepts the chip choice", () => {
-    expect(ready("241 transpo @w")).toEqual({ ok: false, problems: ["Pick a label for @w."] });
-    const overrides = choose({}, "labelIds", ["work"], parse("241 transpo @w"));
-    expect(ready("241 transpo @w", overrides)).toMatchObject({ ok: true, input: { labelIds: ["work"] } });
+    expect(ready("241 transpo grab @w")).toEqual({ ok: false, problems: ["Pick a label for @w."] });
+    const overrides = choose({}, "labelIds", ["work"], parse("241 transpo grab @w"));
+    expect(ready("241 transpo grab @w", overrides)).toMatchObject({ ok: true, input: { labelIds: ["work"] } });
   });
 
   it("asks to settle an ambiguous card", () => {
-    expect(ready("241 transpo #bdo")).toEqual({ ok: false, problems: ["Pick a card for #bdo."] });
-    const overrides = choose({}, "cardId", "bdo2", parse("241 transpo #bdo"));
-    expect(ready("241 transpo #bdo", overrides)).toMatchObject({ ok: true, input: { creditAccountId: "bdo2" } });
+    expect(ready("241 transpo grab #bdo")).toEqual({ ok: false, problems: ["Pick a card for #bdo."] });
+    const overrides = choose({}, "cardId", "bdo2", parse("241 transpo grab #bdo"));
+    expect(ready("241 transpo grab #bdo", overrides)).toMatchObject({ ok: true, input: { creditAccountId: "bdo2" } });
   });
 
   it("blocks an unmatched label instead of saving it as no labels", () => {
-    expect(ready("241 transpo @tvns")).toEqual({
+    expect(ready("241 transpo grab @tvns")).toEqual({
       ok: false,
       problems: ["Fix or remove @tvns, or pick labels."],
     });
     // One good label beside a typo still blocks: the typo was meant to be a label too.
-    expect(ready("241 transpo @tnvs @zzz")).toMatchObject({ ok: false });
+    expect(ready("241 transpo grab @tnvs @zzz")).toMatchObject({ ok: false });
   });
 
   it("saves an unmatched label once the chips settle it", () => {
-    const overrides = choose({}, "labelIds", ["tnvs"], parse("241 transpo @tvns"));
-    expect(ready("241 transpo @tvns", overrides)).toMatchObject({ ok: true, input: { labelIds: ["tnvs"] } });
+    const overrides = choose({}, "labelIds", ["tnvs"], parse("241 transpo grab @tvns"));
+    expect(ready("241 transpo grab @tvns", overrides)).toMatchObject({ ok: true, input: { labelIds: ["tnvs"] } });
   });
 
   it("blocks an unmatched card instead of saving it as cash", () => {
-    expect(ready("241 transpo #bpii")).toEqual({
+    expect(ready("241 transpo grab #bpii")).toEqual({
       ok: false,
       problems: ["Fix or remove #bpii, or pick a card or Cash."],
     });
   });
 
   it("saves an unmatched card once a card or Cash is picked", () => {
-    const parsed = parse("241 transpo #bpii");
-    expect(ready("241 transpo #bpii", choose({}, "cardId", "bdo1", parsed))).toMatchObject({
+    const parsed = parse("241 transpo grab #bpii");
+    expect(ready("241 transpo grab #bpii", choose({}, "cardId", "bdo1", parsed))).toMatchObject({
       ok: true,
       input: { creditAccountId: "bdo1" },
     });
-    const cash = ready("241 transpo #bpii", choose({}, "cardId", null, parsed));
+    const cash = ready("241 transpo grab #bpii", choose({}, "cardId", null, parsed));
     expect(cash.ok).toBe(true);
     expect(cash.ok && cash.input.creditAccountId).toBeUndefined();
   });
 
   it("lets an explicit Cash pick settle an ambiguous card", () => {
-    const overrides = choose({}, "cardId", null, parse("241 transpo #bdo"));
-    expect(ready("241 transpo #bdo", overrides)).toMatchObject({ ok: true });
+    const overrides = choose({}, "cardId", null, parse("241 transpo grab #bdo"));
+    expect(ready("241 transpo grab #bdo", overrides)).toMatchObject({ ok: true });
   });
 
   it("sends an explicit empty label list when labels were cleared", () => {
-    const overrides = choose({}, "labelIds", [], parse("241 transpo @tnvs"));
-    expect(ready("241 transpo @tnvs", overrides)).toMatchObject({ ok: true, input: { labelIds: [] } });
+    const overrides = choose({}, "labelIds", [], parse("241 transpo grab @tnvs"));
+    expect(ready("241 transpo grab @tnvs", overrides)).toMatchObject({ ok: true, input: { labelIds: [] } });
   });
 
   it("drops labels the entry's type cannot carry after a type flip", () => {
-    const parsed = parse("+500 salary @bonus");
+    const parsed = parse("+500 salary @bonus sept");
     let overrides = choose({}, "labelIds", ["bonus", "tnvs"], parsed);
     overrides = choose(overrides, "type", "INCOME", parsed);
-    expect(ready("+500 salary @bonus", overrides)).toMatchObject({ ok: true, input: { labelIds: ["bonus"] } });
+    expect(ready("+500 salary @bonus sept", overrides)).toMatchObject({ ok: true, input: { labelIds: ["bonus"] } });
   });
 });
